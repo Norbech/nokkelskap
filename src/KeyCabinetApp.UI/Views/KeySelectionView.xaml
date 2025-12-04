@@ -1,0 +1,114 @@
+<UserControl x:Class="KeyCabinetApp.UI.Views.KeySelectionView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             mc:Ignorable="d" 
+             d:DesignHeight="600" d:DesignWidth="1200">
+    
+    <Grid Margin="32">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- User info -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,16">
+            <materialDesign:PackIcon Kind="Account" Width="32" Height="32" VerticalAlignment="Center" Margin="0,0,16,0"/>
+            <TextBlock Text="{Binding UserName}"
+                      Style="{StaticResource MaterialDesignHeadline4TextBlock}"
+                      VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Status message -->
+        <materialDesign:Card Grid.Row="1" Padding="16" Margin="0,0,0,16">
+            <TextBlock Text="{Binding StatusMessage}"
+                      Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                      TextAlignment="Center">
+                <TextBlock.Foreground>
+                    <SolidColorBrush Color="{Binding IsError, Converter={StaticResource BoolToErrorColorConverter}}"/>
+                </TextBlock.Foreground>
+            </TextBlock>
+        </materialDesign:Card>
+
+        <!-- Keys grid -->
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding AvailableKeys}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <materialDesign:Card Width="280" Height="200" Margin="8" 
+                                           materialDesign:ElevationAssist.Elevation="Dp4"
+                                           Cursor="Hand"
+                                           Tag="{Binding}">
+                            <materialDesign:Card.InputBindings>
+                                <MouseBinding MouseAction="LeftClick" 
+                                            Command="{Binding DataContext.OpenKeyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                            </materialDesign:Card.InputBindings>
+                            
+                            <materialDesign:Card.Style>
+                                <Style TargetType="materialDesign:Card" BasedOn="{StaticResource {x:Type materialDesign:Card}}">
+                                    <EventSetter Event="MouseEnter" Handler="Card_MouseEnter"/>
+                                    <EventSetter Event="MouseLeave" Handler="Card_MouseLeave"/>
+                                    <EventSetter Event="MouseLeftButtonDown" Handler="Card_Click"/>
+                                </Style>
+                            </materialDesign:Card.Style>
+
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Key icon and slot ID -->
+                                <StackPanel Grid.Row="0" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <materialDesign:PackIcon Kind="Key" Width="80" Height="80" 
+                                                           Foreground="{DynamicResource PrimaryHueMidBrush}"/>
+                                    <TextBlock Text="{Binding SlotId, StringFormat='Slot {0}'}"
+                                             Style="{StaticResource MaterialDesignCaptionTextBlock}"
+                                             HorizontalAlignment="Center"
+                                             Margin="0,8,0,0"/>
+                                </StackPanel>
+
+                                <!-- Key info -->
+                                <Border Grid.Row="1" Background="{DynamicResource PrimaryHueMidBrush}" Padding="16">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}"
+                                                 Style="{StaticResource MaterialDesignSubtitle1TextBlock}"
+                                                 Foreground="White"
+                                                 FontWeight="Bold"
+                                                 TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{Binding Description}"
+                                                 Style="{StaticResource MaterialDesignCaptionTextBlock}"
+                                                 Foreground="White"
+                                                 TextTrimming="CharacterEllipsis"
+                                                 Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </materialDesign:Card>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Logout button -->
+        <Button Grid.Row="3"
+               Content="LOGG UT"
+               Command="{Binding LogoutCommand}"
+               Style="{StaticResource MaterialDesignOutlinedButton}"
+               HorizontalAlignment="Right"
+               Height="48"
+               Width="200"
+               Margin="0,16,0,0"
+               FontSize="16"/>
+    </Grid>
+</UserControl>
