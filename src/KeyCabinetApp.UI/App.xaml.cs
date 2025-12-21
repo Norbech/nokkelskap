@@ -25,9 +25,10 @@ public partial class App : WpfApp
     {
         base.OnStartup(e);
 
-        // Load configuration
+        // Load configuration - use app directory
+        var appDirectory = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? Directory.GetCurrentDirectory();
         var builder = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
+            .SetBasePath(appDirectory)
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
 
         Configuration = builder.Build();

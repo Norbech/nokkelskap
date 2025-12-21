@@ -3,14 +3,13 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:views="clr-namespace:KeyCabinetApp.UI.Views"
         xmlns:vm="clr-namespace:KeyCabinetApp.UI.ViewModels"
         xmlns:System="clr-namespace:System;assembly=mscorlib"
         mc:Ignorable="d"
-        Title="Nøkkelskap" Height="800" Width="1280"
-        Background="{DynamicResource MaterialDesignPaper}"
-        FontFamily="{DynamicResource MaterialDesignFont}">
+        Title="Nøkkelskap Kontrollsystem" Height="800" Width="1280"
+        Background="#F5F5F5"
+        WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
         <DataTemplate DataType="{x:Type vm:LoginViewModel}">
@@ -34,44 +33,40 @@
         </Grid.RowDefinitions>
 
         <!-- Top bar -->
-        <materialDesign:ColorZone Grid.Row="0" Mode="PrimaryMid" Padding="16">
+        <Border Grid.Row="0" Background="#2196F3" Padding="16">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Left" 
                           Text="NØKKELSKAP KONTROLLSYSTEM"
-                          Style="{StaticResource MaterialDesignHeadline5TextBlock}"
+                          FontSize="24"
+                          FontWeight="SemiBold"
+                          Foreground="White"
                           VerticalAlignment="Center"/>
                 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Style="{StaticResource MaterialDesignFlatButton}"
+                    <Button Content="📋 Logg"
                             Command="{Binding ShowLogViewerCommand}"
                             Visibility="{Binding IsLoggedIn, Converter={StaticResource BooleanToVisibilityConverter}}"
-                            Margin="8,0">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="FileDocument" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock Text="Logg" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
+                            Margin="8,0" Padding="12,6"
+                            Background="Transparent" Foreground="White" BorderBrush="White" BorderThickness="1"/>
                     
-                    <Button Style="{StaticResource MaterialDesignFlatButton}"
+                    <Button Content="⚙️ Admin"
                             Command="{Binding ShowAdminCommand}"
                             Visibility="{Binding IsLoggedIn, Converter={StaticResource BooleanToVisibilityConverter}}"
-                            Margin="8,0">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="Settings" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBlock Text="Admin" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
+                            Margin="8,0" Padding="12,6"
+                            Background="Transparent" Foreground="White" BorderBrush="White" BorderThickness="1"/>
                 </StackPanel>
                 
                 <TextBlock DockPanel.Dock="Right"
                           Text="{Binding Source={x:Static System:DateTime.Now}, StringFormat='{}{0:dd.MM.yyyy HH:mm}'}"
                           VerticalAlignment="Center"
+                          Foreground="White"
+                          FontSize="14"
                           HorizontalAlignment="Right"
                           Margin="16,0"/>
             </DockPanel>
-        </materialDesign:ColorZone>
+        </Border>
 
         <!-- Content area -->
-        <ContentControl Grid.Row="1" Content="{Binding CurrentViewModel}" />
+        <ContentControl Grid.Row="1" Content="{Binding CurrentViewModel}" Margin="10" />
     </Grid>
 </Window>
