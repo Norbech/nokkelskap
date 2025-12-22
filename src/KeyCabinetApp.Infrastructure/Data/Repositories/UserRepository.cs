@@ -16,6 +16,7 @@ public class UserRepository : IUserRepository
     public async Task<User?> GetByIdAsync(int id)
     {
         return await _context.Users
+            .AsNoTracking()
             .Include(u => u.KeyAccess)
                 .ThenInclude(ka => ka.Key)
             .FirstOrDefaultAsync(u => u.Id == id);
@@ -24,6 +25,7 @@ public class UserRepository : IUserRepository
     public async Task<User?> GetByUsernameAsync(string username)
     {
         return await _context.Users
+            .AsNoTracking()
             .Include(u => u.KeyAccess)
                 .ThenInclude(ka => ka.Key)
             .FirstOrDefaultAsync(u => u.Username == username);
@@ -32,6 +34,7 @@ public class UserRepository : IUserRepository
     public async Task<User?> GetByRfidAsync(string rfidTag)
     {
         return await _context.Users
+            .AsNoTracking()
             .Include(u => u.KeyAccess)
                 .ThenInclude(ka => ka.Key)
             .FirstOrDefaultAsync(u => u.RfidTag == rfidTag);
@@ -40,6 +43,7 @@ public class UserRepository : IUserRepository
     public async Task<IEnumerable<User>> GetAllAsync()
     {
         return await _context.Users
+            .AsNoTracking()
             .Include(u => u.KeyAccess)
                 .ThenInclude(ka => ka.Key)
             .ToListAsync();

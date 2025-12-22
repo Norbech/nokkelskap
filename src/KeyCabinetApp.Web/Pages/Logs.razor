@@ -90,15 +90,29 @@ else
     private DateTime FromDate { get; set; } = DateTime.Today.AddDays(-7);
     private DateTime ToDate { get; set; } = DateTime.Today.AddDays(1);
     private string EventTypeFilter { get; set; } = string.Empty;
+    private bool _hasInitialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_hasInitialized)
+        {
+            await SessionState.InitializeAsync();
+            _hasInitialized = true;
+
+            if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            await LoadEvents();
+            StateHasChanged();
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
-        if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
-        {
-            return;
-        }
-
-        await LoadEvents();
+        // Initialization now happens in OnAfterRenderAsync
     }
 
     private async Task LoadEvents()

@@ -83,7 +83,7 @@
 
             if (success && user != null)
             {
-                SessionState.SetCurrentUser(user);
+                await SessionState.SetCurrentUserAsync(user);
                 StatusMessage = $"Velkommen, {user.Name}!";
                 IsError = false;
                 StateHasChanged();
@@ -116,7 +116,7 @@
 
         if (success && user != null)
         {
-            SessionState.SetCurrentUser(user);
+            await SessionState.SetCurrentUserAsync(user);
             StatusMessage = $"Velkommen, {user.Name}!";
             IsError = false;
             Password = string.Empty;

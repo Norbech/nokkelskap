@@ -73,6 +73,25 @@ else
 }
 
 @code {
+    private bool _hasInitialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_hasInitialized)
+        {
+            await SessionState.InitializeAsync();
+            _hasInitialized = true;
+
+            if (SessionState.CurrentUser == null)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            StateHasChanged();
+        }
+    }
+
     private void GoBack()
     {
         Navigation.NavigateTo("/keys");

@@ -138,15 +138,29 @@ else
     private string NewPassword { get; set; } = string.Empty;
     private bool ChangePassword { get; set; }
     private string ErrorMessage { get; set; } = string.Empty;
+    private bool _hasInitialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_hasInitialized)
+        {
+            await SessionState.InitializeAsync();
+            _hasInitialized = true;
+
+            if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            await LoadUsers();
+            StateHasChanged();
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
-        if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
-        {
-            return;
-        }
-
-        await LoadUsers();
+        // Initialization now happens in OnAfterRenderAsync
     }
 
     private async Task LoadUsers()

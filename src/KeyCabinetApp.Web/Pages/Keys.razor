@@ -76,25 +76,38 @@ else
     private List<Key> AvailableKeys { get; set; } = new();
     private string StatusMessage { get; set; } = "Velg nøkkel å åpne";
     private bool IsError { get; set; }
+    private bool _hasInitialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_hasInitialized)
+        {
+            await SessionState.InitializeAsync();
+            _hasInitialized = true;
+
+            if (SessionState.CurrentUser == null)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            await LoadUserKeys();
+            StateHasChanged();
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
-        if (SessionState.CurrentUser == null)
-        {
-            Navigation.NavigateTo("/login");
-            return;
-        }
-
-        // Debug logging
-        Console.WriteLine($"Current User: {SessionState.CurrentUser.Name}");
-        Console.WriteLine($"IsAdmin: {SessionState.CurrentUser.IsAdmin}");
-
-        await LoadUserKeys();
+        // Initialization now happens in OnAfterRenderAsync
     }
 
     private async Task LoadUserKeys()
     {
         if (SessionState.CurrentUser == null) return;
+
+        // Debug logging
+        Console.WriteLine($"Current User: {SessionState.CurrentUser.Name}");
+        Console.WriteLine($"IsAdmin: {SessionState.CurrentUser.IsAdmin}");
 
         var keys = await KeyControlService.GetUserKeysAsync(SessionState.CurrentUser.Id);
         AvailableKeys = keys.OrderBy(k => k.Name).ToList();
@@ -135,7 +148,7 @@ else
     private void Logout()
     {
         AuthService.Logout();
-        SessionState.Clear();
+        _ = SessionState.ClearAsync();
         Navigation.NavigateTo("/login");
     }
 

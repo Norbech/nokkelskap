@@ -16,6 +16,7 @@ public class KeyRepository : IKeyRepository
     public async Task<Key?> GetByIdAsync(int id)
     {
         return await _context.Keys
+            .AsNoTracking()
             .Include(k => k.UserAccess)
                 .ThenInclude(ua => ua.User)
             .FirstOrDefaultAsync(k => k.Id == id);
@@ -24,6 +25,7 @@ public class KeyRepository : IKeyRepository
     public async Task<Key?> GetBySlotIdAsync(int slotId)
     {
         return await _context.Keys
+            .AsNoTracking()
             .Include(k => k.UserAccess)
                 .ThenInclude(ua => ua.User)
             .FirstOrDefaultAsync(k => k.SlotId == slotId);
@@ -32,6 +34,7 @@ public class KeyRepository : IKeyRepository
     public async Task<IEnumerable<Key>> GetAllAsync()
     {
         return await _context.Keys
+            .AsNoTracking()
             .Include(k => k.UserAccess)
                 .ThenInclude(ua => ua.User)
             .ToListAsync();
@@ -40,6 +43,7 @@ public class KeyRepository : IKeyRepository
     public async Task<IEnumerable<Key>> GetActiveKeysAsync()
     {
         return await _context.Keys
+            .AsNoTracking()
             .Where(k => k.IsActive)
             .Include(k => k.UserAccess)
                 .ThenInclude(ua => ua.User)
@@ -49,6 +53,7 @@ public class KeyRepository : IKeyRepository
     public async Task<IEnumerable<Key>> GetKeysForUserAsync(int userId)
     {
         return await _context.UserKeyAccess
+            .AsNoTracking()
             .Where(ua => ua.UserId == userId)
             .Include(ua => ua.Key)
             .Select(ua => ua.Key)

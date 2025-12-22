@@ -101,15 +101,29 @@ else
     private bool ShowEditor { get; set; }
     private Key EditingKey { get; set; } = new();
     private string ErrorMessage { get; set; } = string.Empty;
+    private bool _hasInitialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_hasInitialized)
+        {
+            await SessionState.InitializeAsync();
+            _hasInitialized = true;
+
+            if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            await LoadKeys();
+            StateHasChanged();
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
-        if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
-        {
-            return;
-        }
-
-        await LoadKeys();
+        // Initialization now happens in OnAfterRenderAsync
     }
 
     private async Task LoadKeys()

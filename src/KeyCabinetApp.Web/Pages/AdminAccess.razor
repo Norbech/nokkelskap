@@ -89,15 +89,29 @@ else
     private List<Key> Keys { get; set; } = new();
     private List<UserKeyAccess> UserAccess { get; set; } = new();
     private string SuccessMessage { get; set; } = string.Empty;
+    private bool _hasInitialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_hasInitialized)
+        {
+            await SessionState.InitializeAsync();
+            _hasInitialized = true;
+
+            if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            await LoadData();
+            StateHasChanged();
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
-        if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
-        {
-            return;
-        }
-
-        await LoadData();
+        // Initialization now happens in OnAfterRenderAsync
     }
 
     private async Task LoadData()
