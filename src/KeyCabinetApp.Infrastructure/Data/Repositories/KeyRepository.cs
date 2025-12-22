@@ -65,8 +65,12 @@ public class KeyRepository : IKeyRepository
 
     public async Task UpdateAsync(Key key)
     {
-        _context.Keys.Update(key);
-        await _context.SaveChangesAsync();
+        var existingKey = await _context.Keys.FindAsync(key.Id);
+        if (existingKey != null)
+        {
+            _context.Entry(existingKey).CurrentValues.SetValues(key);
+            await _context.SaveChangesAsync();
+        }
     }
 
     public async Task DeleteAsync(int id)

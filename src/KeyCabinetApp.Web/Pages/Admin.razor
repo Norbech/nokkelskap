@@ -1,0 +1,105 @@
+@page "/admin"
+@using KeyCabinetApp.Web.Services
+@inject SessionStateService SessionState
+@inject NavigationManager Navigation
+@inject HardwareAgentManager HardwareAgentManager
+
+<PageTitle>Nøkkelskap - Administrasjon</PageTitle>
+
+@if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
+{
+    <div class="access-denied">
+        <h2>Ingen tilgang</h2>
+        <p>Du må være administrator for å se denne siden.</p>
+        <button class="btn-primary" @onclick="GoBack">Tilbake</button>
+    </div>
+}
+else
+{
+    <div class="admin-container">
+        <div class="admin-header">
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <h1>Administrasjon</h1>
+                <div class="hardware-status @(HardwareAgentManager.IsAgentConnected ? "connected" : "disconnected")">
+                    <span class="status-dot"></span>
+                    <span>Panel @(HardwareAgentManager.IsAgentConnected ? "tilkoblet" : "frakoblet")</span>
+                </div>
+            </div>
+            <button class="btn-outline" @onclick="GoBack">Tilbake</button>
+        </div>
+
+        <div class="admin-sections">
+            <!-- Users Section -->
+            <div class="admin-card">
+                <div class="card-icon">👥</div>
+                <h2>Brukerhåndtering</h2>
+                <p>Opprett, rediger og slett brukere. Tildel RFID-kort og tilganger.</p>
+                <button class="btn-primary" @onclick="ManageUsers">Administrer brukere</button>
+            </div>
+
+            <!-- Keys Section -->
+            <div class="admin-card">
+                <div class="card-icon">🔑</div>
+                <h2>Kjøretøy/Nøkler</h2>
+                <p>Registrer kjøretøy, endre navn på skap og administrer nøkler.</p>
+                <button class="btn-primary" @onclick="ManageKeys">Administrer kjøretøy</button>
+            </div>
+
+            <!-- Access Control -->
+            <div class="admin-card">
+                <div class="card-icon">🔐</div>
+                <h2>Tilgangsstyring</h2>
+                <p>Styr hvilke brukere som har tilgang til hvilke kjøretøy.</p>
+                <button class="btn-primary" @onclick="ManageAccess">Administrer tilganger</button>
+            </div>
+
+            <!-- Logs Section -->
+            <div class="admin-card">
+                <div class="card-icon">📋</div>
+                <h2>Hendelseslogg</h2>
+                <p>Se historikk over innlogginger og nøkkel-åpninger.</p>
+                <button class="btn-primary" @onclick="ViewLogs">Se logger</button>
+            </div>
+
+            <!-- Hardware Status -->
+            <div class="admin-card">
+                <div class="card-icon">🖥️</div>
+                <h2>Hardware Status</h2>
+                <p>Se status for hardware agent og tilkoblinger.</p>
+                <button class="btn-primary" @onclick="ViewHardwareStatus">Se status</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/keys");
+    }
+
+    private void ManageUsers()
+    {
+        Navigation.NavigateTo("/admin/users");
+    }
+
+    private void ManageKeys()
+    {
+        Navigation.NavigateTo("/admin/keys");
+    }
+
+    private void ManageAccess()
+    {
+        Navigation.NavigateTo("/admin/access");
+    }
+
+    private void ViewLogs()
+    {
+        Navigation.NavigateTo("/admin/logs");
+    }
+
+    private void ViewHardwareStatus()
+    {
+        Navigation.NavigateTo("/admin/hardware");
+    }
+}

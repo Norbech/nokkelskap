@@ -61,6 +61,29 @@ public class LoggingService
     }
 
     /// <summary>
+    /// Gets events with date range and optional type filter
+    /// </summary>
+    public async Task<IEnumerable<Event>> GetEventsAsync(DateTime startDate, DateTime endDate, string? eventType = null)
+    {
+        try
+        {
+            var events = await _eventRepository.GetByDateRangeAsync(startDate, endDate);
+            
+            if (!string.IsNullOrEmpty(eventType))
+            {
+                events = events.Where(e => e.ActionType == eventType);
+            }
+            
+            return events;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving events");
+            return Enumerable.Empty<Event>();
+        }
+    }
+
+    /// <summary>
     /// Gets recent events (last N events)
     /// </summary>
     public async Task<IEnumerable<Event>> GetRecentEventsAsync(int count = 100)

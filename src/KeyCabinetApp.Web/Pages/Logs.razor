@@ -1,0 +1,115 @@
+@page "/admin/logs"
+@using KeyCabinetApp.Application.Services
+@using KeyCabinetApp.Core.Entities
+@using KeyCabinetApp.Web.Services
+@inject LoggingService LoggingService
+@inject SessionStateService SessionState
+@inject NavigationManager Navigation
+
+<PageTitle>Nøkkelskap - Hendelseslogg</PageTitle>
+
+@if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
+{
+    <div class="access-denied">
+        <h2>Ingen tilgang</h2>
+        <p>Du må være administrator for å se denne siden.</p>
+        <button class="btn-primary" @onclick="GoBack">Tilbake</button>
+    </div>
+}
+else
+{
+    <div class="logs-container">
+        <div class="logs-header">
+            <h1>Hendelseslogg</h1>
+            <button class="btn-outline" @onclick="GoBack">Tilbake</button>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters-card">
+            <div class="filter-group">
+                <label>Fra dato:</label>
+                <input type="date" @bind="FromDate" />
+            </div>
+            <div class="filter-group">
+                <label>Til dato:</label>
+                <input type="date" @bind="ToDate" />
+            </div>
+            <div class="filter-group">
+                <label>Type:</label>
+                <select @bind="EventTypeFilter">
+                    <option value="">Alle</option>
+                    <option value="LOGIN">Innlogging</option>
+                    <option value="LOGOUT">Utlogging</option>
+                    <option value="KEY_OPENED">Nøkkel åpnet</option>
+                    <option value="KEY_FAILED">Nøkkel feilet</option>
+                </select>
+            </div>
+            <button class="btn-primary" @onclick="LoadEvents">Søk</button>
+        </div>
+
+        <!-- Events table -->
+        <div class="events-table-container">
+            <table class="events-table">
+                <thead>
+                    <tr>
+                        <th>Tidspunkt</th>
+                        <th>Type</th>
+                        <th>Bruker</th>
+                        <th>Beskrivelse</th>
+                        <th>Vellykket</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var evt in Events)
+                    {
+                        <tr>
+                            <td>@evt.Timestamp.ToString("dd.MM.yyyy HH:mm:ss")</td>
+                            <td>@evt.ActionType</td>
+                            <td>@(evt.User?.Name ?? "Ukjent")</td>
+                            <td>@evt.Details</td>
+                            <td class="@(evt.Success ? "success" : "error")">
+                                @(evt.Success ? "Ja" : "Nei")
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (Events.Count == 0)
+            {
+                <div class="no-events">
+                    <p>Ingen hendelser funnet.</p>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private List<Event> Events { get; set; } = new();
+    private DateTime FromDate { get; set; } = DateTime.Today.AddDays(-7);
+    private DateTime ToDate { get; set; } = DateTime.Today.AddDays(1);
+    private string EventTypeFilter { get; set; } = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
+        {
+            return;
+        }
+
+        await LoadEvents();
+    }
+
+    private async Task LoadEvents()
+    {
+        Events = (await LoggingService.GetEventsAsync(FromDate, ToDate, EventTypeFilter))
+            .OrderByDescending(e => e.Timestamp)
+            .ToList();
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/admin");
+    }
+}

@@ -1,0 +1,146 @@
+@page "/keys"
+@using KeyCabinetApp.Application.Services
+@using KeyCabinetApp.Core.Entities
+@using KeyCabinetApp.Web.Services
+@inject AuthenticationService AuthService
+@inject KeyControlService KeyControlService
+@inject SessionStateService SessionState
+@inject NavigationManager Navigation
+@inject HardwareAgentManager HardwareAgentManager
+@implements IDisposable
+
+<PageTitle>Nøkkelskap - Velg nøkkel</PageTitle>
+
+@if (SessionState.CurrentUser == null)
+{
+    <div class="loading">Laster...</div>
+}
+else
+{
+    <div class="key-selection-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="user-info">
+                <svg class="user-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                </svg>
+                <span class="user-name">@SessionState.CurrentUser.Name</span>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <div class="hardware-status @(HardwareAgentManager.IsAgentConnected ? "connected" : "disconnected")">
+                    <span class="status-dot"></span>
+                    <span>Panel @(HardwareAgentManager.IsAgentConnected ? "tilkoblet" : "frakoblet")</span>
+                </div>
+                @if (SessionState.CurrentUser.IsAdmin)
+                {
+                    <button class="btn-admin" @onclick="GoToAdmin">⚙️ Admin</button>
+                }
+                <button class="btn-logout" @onclick="Logout">LOGG UT</button>
+            </div>
+        </div>
+
+        <!-- Status message -->
+        <div class="status-card">
+            <p class="@(IsError ? "error" : "")">@StatusMessage</p>
+        </div>
+
+        <!-- Keys grid -->
+        <div class="keys-grid">
+            @foreach (var key in AvailableKeys)
+            {
+                <div class="key-card" @onclick="() => OpenKey(key)">
+                    <div class="key-icon-section">
+                        <svg class="key-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
+                        </svg>
+                        <span class="slot-id">Slot @key.SlotId</span>
+                    </div>
+                    <div class="key-info">
+                        <span class="key-name">@key.Name</span>
+                        <span class="key-description">@key.Description</span>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (AvailableKeys.Count == 0)
+        {
+            <div class="no-keys">
+                <p>Du har ikke tilgang til noen nøkler.</p>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<Key> AvailableKeys { get; set; } = new();
+    private string StatusMessage { get; set; } = "Velg nøkkel å åpne";
+    private bool IsError { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (SessionState.CurrentUser == null)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        // Debug logging
+        Console.WriteLine($"Current User: {SessionState.CurrentUser.Name}");
+        Console.WriteLine($"IsAdmin: {SessionState.CurrentUser.IsAdmin}");
+
+        await LoadUserKeys();
+    }
+
+    private async Task LoadUserKeys()
+    {
+        if (SessionState.CurrentUser == null) return;
+
+        var keys = await KeyControlService.GetUserKeysAsync(SessionState.CurrentUser.Id);
+        AvailableKeys = keys.OrderBy(k => k.Name).ToList();
+    }
+
+    private async Task OpenKey(Key key)
+    {
+        if (SessionState.CurrentUser == null) return;
+
+        StatusMessage = $"Åpner {key.Name}...";
+        IsError = false;
+        StateHasChanged();
+
+        var authMethod = SessionState.CurrentUser.RfidTag != null ? "RFID" : "PASSWORD";
+        var (success, message) = await KeyControlService.OpenKeyAsync(
+            key.Id,
+            SessionState.CurrentUser.Id,
+            authMethod);
+
+        StatusMessage = message;
+        IsError = !success;
+        StateHasChanged();
+
+        if (success)
+        {
+            await Task.Delay(2000);
+            StatusMessage = "Velg nøkkel å åpne";
+            IsError = false;
+            StateHasChanged();
+        }
+    }
+
+    private void GoToAdmin()
+    {
+        Navigation.NavigateTo("/admin");
+    }
+
+    private void Logout()
+    {
+        AuthService.Logout();
+        SessionState.Clear();
+        Navigation.NavigateTo("/login");
+    }
+
+    public void Dispose()
+    {
+        // Cleanup if needed
+    }
+}

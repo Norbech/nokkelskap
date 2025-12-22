@@ -1,0 +1,170 @@
+@page "/"
+@page "/login"
+@using KeyCabinetApp.Application.Services
+@using KeyCabinetApp.Web.Services
+@inject AuthenticationService AuthService
+@inject SessionStateService SessionState
+@inject NavigationManager Navigation
+@inject IRfidReader RfidReader
+@implements IDisposable
+
+<PageTitle>Nøkkelskap - Innlogging</PageTitle>
+
+<div class="login-container">
+    <div class="login-card">
+        @if (!ShowPasswordLogin)
+        {
+            <!-- RFID Login Mode -->
+            <div class="rfid-section">
+                <div class="rfid-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h2v2H6zm0 4h8v2H6zm10 0h2v2h-2zm-6-4h8v2h-8z"/>
+                    </svg>
+                </div>
+                
+                <p class="status-message @(IsError ? "error" : "")">@StatusMessage</p>
+                
+                <button class="btn-outline" @onclick="ShowPasswordForm" style="min-height: 48px; width: 100%; margin-top: 16px;">
+                    LOGG INN MED BRUKERNAVN
+                </button>
+            </div>
+        }
+        else
+        {
+            <!-- Password Login Mode -->
+            <div class="password-section">
+                <h2>Logg inn med brukernavn</h2>
+                
+                <div class="form-group">
+                    <label>Brukernavn</label>
+                    <input type="text" @bind="Username" @bind:event="oninput" placeholder="Skriv inn brukernavn" />
+                </div>
+                
+                <div class="form-group">
+                    <label>Passord</label>
+                    <input type="password" @bind="Password" @bind:event="oninput" 
+                           @onkeypress="HandleKeyPress" placeholder="Skriv inn passord" />
+                </div>
+                
+                <p class="status-message @(IsError ? "error" : "")">@StatusMessage</p>
+                
+                <div class="button-group">
+                    <button class="btn-outline" @onclick="CancelPasswordLogin">AVBRYT</button>
+                    <button class="btn-primary" @onclick="LoginWithPassword" disabled="@(!CanLogin)">LOGG INN</button>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private string Username { get; set; } = string.Empty;
+    private string Password { get; set; } = string.Empty;
+    private string StatusMessage { get; set; } = "Skann RFID-kort eller logg inn med brukernavn";
+    private bool IsError { get; set; }
+    private bool ShowPasswordLogin { get; set; }
+    
+    private bool CanLogin => !string.IsNullOrWhiteSpace(Username) && !string.IsNullOrWhiteSpace(Password);
+
+    protected override void OnInitialized()
+    {
+        // Subscribe to RFID events from hardware agent
+        if (RfidReader is RfidProxyService rfidProxy)
+        {
+            rfidProxy.CardScanned += OnRfidCardScanned;
+        }
+    }
+
+    private async void OnRfidCardScanned(object? sender, string rfidTag)
+    {
+        await InvokeAsync(async () =>
+        {
+            var (success, user, message) = await AuthService.AuthenticateByRfidAsync(rfidTag);
+
+            if (success && user != null)
+            {
+                SessionState.SetCurrentUser(user);
+                StatusMessage = $"Velkommen, {user.Name}!";
+                IsError = false;
+                StateHasChanged();
+                
+                await Task.Delay(500);
+                Navigation.NavigateTo("/keys");
+            }
+            else
+            {
+                StatusMessage = message;
+                IsError = true;
+                StateHasChanged();
+                
+                await Task.Delay(3000);
+                StatusMessage = "Skann RFID-kort eller logg inn med brukernavn";
+                IsError = false;
+                StateHasChanged();
+            }
+        });
+    }
+
+    private async Task LoginWithPassword()
+    {
+        if (!CanLogin) return;
+        
+        StatusMessage = "Logger inn...";
+        IsError = false;
+
+        var (success, user, message) = await AuthService.AuthenticateByPasswordAsync(Username, Password);
+
+        if (success && user != null)
+        {
+            SessionState.SetCurrentUser(user);
+            StatusMessage = $"Velkommen, {user.Name}!";
+            IsError = false;
+            Password = string.Empty;
+            
+            await Task.Delay(500);
+            Navigation.NavigateTo("/keys");
+        }
+        else
+        {
+            StatusMessage = message;
+            IsError = true;
+            Password = string.Empty;
+        }
+    }
+
+    private async Task CancelPasswordLogin()
+    {
+        ShowPasswordLogin = false;
+        Username = string.Empty;
+        Password = string.Empty;
+        StatusMessage = "Skann RFID-kort eller logg inn med brukernavn";
+        IsError = false;
+        StateHasChanged();
+        await Task.CompletedTask;
+    }
+
+    private async Task ShowPasswordForm()
+    {
+        ShowPasswordLogin = true;
+        StatusMessage = "Skriv inn brukernavn og passord";
+        IsError = false;
+        StateHasChanged();
+        await Task.CompletedTask;
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && CanLogin)
+        {
+            await LoginWithPassword();
+        }
+    }
+
+    public void Dispose()
+    {
+        if (RfidReader is RfidProxyService rfidProxy)
+        {
+            rfidProxy.CardScanned -= OnRfidCardScanned;
+        }
+    }
+}

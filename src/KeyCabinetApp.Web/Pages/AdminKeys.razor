@@ -1,0 +1,232 @@
+@page "/admin/keys"
+@using KeyCabinetApp.Core.Entities
+@using KeyCabinetApp.Core.Interfaces
+@using KeyCabinetApp.Web.Services
+@inject IKeyRepository KeyRepository
+@inject SessionStateService SessionState
+@inject NavigationManager Navigation
+
+<PageTitle>Nøkkelhåndtering</PageTitle>
+
+@if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
+{
+    <div class="access-denied">
+        <h2>Ingen tilgang</h2>
+        <p>Du må være administrator for å se denne siden.</p>
+        <button class="btn-primary" @onclick="@(() => Navigation.NavigateTo("/admin"))">Tilbake</button>
+    </div>
+}
+else
+{
+    <div class="admin-container">
+        <div class="admin-header">
+            <h1>🔑 Nøkkelhåndtering</h1>
+            <div>
+                <button class="btn-primary" @onclick="ShowCreateKey">➕ Ny nøkkel</button>
+                <button class="btn-outline" @onclick="@(() => Navigation.NavigateTo("/admin"))">Tilbake</button>
+            </div>
+        </div>
+
+        @if (ShowEditor)
+        {
+            <div class="modal-overlay" @onclick="CloseEditor">
+                <div class="modal-content" @onclick:stopPropagation="true">
+                    <h2>@(EditingKey.Id == 0 ? "Registrer nytt kjøretøy" : "Rediger kjøretøy")</h2>
+                    
+                    <div class="form-group">
+                        <label>Slot ID * (1-8)</label>
+                        <input type="number" @bind="EditingKey.SlotId" min="1" max="8" 
+                               placeholder="Fysisk slot-nummer" />
+                        <small>Hvilket slot i nøkkelskapet (1-8)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Navn * (f.eks. bilnummer)</label>
+                        <input type="text" @bind="EditingKey.Name" placeholder="F101, T201, etc." />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Beskrivelse</label>
+                        <input type="text" @bind="EditingKey.Description" 
+                               placeholder="Mercedes Sprinter 2020" />
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" @bind="EditingKey.IsActive" />
+                            Aktiv
+                        </label>
+                    </div>
+
+                    <p class="error-message">@ErrorMessage</p>
+
+                    <div class="button-group">
+                        <button class="btn-outline" @onclick="CloseEditor">Avbryt</button>
+                        <button class="btn-primary" @onclick="SaveKey">Lagre</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <div class="keys-grid-admin">
+            @foreach (var key in Keys.OrderBy(k => k.SlotId))
+            {
+                <div class="key-card-admin @(key.IsActive ? "" : "inactive")">
+                    <div class="slot-badge">Slot @key.SlotId</div>
+                    <h3>@key.Name</h3>
+                    <p class="key-description">@key.Description</p>
+                    <div class="key-status">
+                        @(key.IsActive ? "✓ Aktiv" : "⊘ Inaktiv")
+                    </div>
+                    <div class="key-actions">
+                        <button class="btn-icon" @onclick="() => EditKey(key)" title="Rediger">✏️</button>
+                        <button class="btn-icon" @onclick="() => DeleteKey(key)" title="Slett">🗑️</button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (Keys.Count == 0)
+        {
+            <div class="no-data">
+                <p>Ingen kjøretøy registrert.</p>
+                <button class="btn-primary" @onclick="ShowCreateKey">Registrer første kjøretøy</button>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<Key> Keys { get; set; } = new();
+    private bool ShowEditor { get; set; }
+    private Key EditingKey { get; set; } = new();
+    private string ErrorMessage { get; set; } = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
+        {
+            return;
+        }
+
+        await LoadKeys();
+    }
+
+    private async Task LoadKeys()
+    {
+        Keys = (await KeyRepository.GetAllAsync()).ToList();
+    }
+
+    private void ShowCreateKey()
+    {
+        EditingKey = new Key
+        {
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            SlotId = GetNextAvailableSlot()
+        };
+        ErrorMessage = string.Empty;
+        ShowEditor = true;
+    }
+
+    private int GetNextAvailableSlot()
+    {
+        for (int i = 1; i <= 8; i++)
+        {
+            if (!Keys.Any(k => k.SlotId == i))
+            {
+                return i;
+            }
+        }
+        return 1;
+    }
+
+    private void EditKey(Key key)
+    {
+        EditingKey = new Key
+        {
+            Id = key.Id,
+            SlotId = key.SlotId,
+            Name = key.Name,
+            Description = key.Description,
+            IsActive = key.IsActive,
+            CreatedAt = key.CreatedAt
+        };
+        ErrorMessage = string.Empty;
+        ShowEditor = true;
+    }
+
+    private async Task SaveKey()
+    {
+        ErrorMessage = string.Empty;
+
+        // Validering
+        if (EditingKey.SlotId < 1 || EditingKey.SlotId > 8)
+        {
+            ErrorMessage = "Slot ID må være mellom 1 og 8";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(EditingKey.Name))
+        {
+            ErrorMessage = "Navn er påkrevd";
+            return;
+        }
+
+        // Sjekk om slot allerede er i bruk
+        var existingKey = Keys.FirstOrDefault(k => k.SlotId == EditingKey.SlotId && k.Id != EditingKey.Id);
+        if (existingKey != null)
+        {
+            ErrorMessage = $"Slot {EditingKey.SlotId} er allerede i bruk av '{existingKey.Name}'";
+            return;
+        }
+
+        try
+        {
+            if (EditingKey.Id == 0)
+            {
+                await KeyRepository.AddAsync(EditingKey);
+            }
+            else
+            {
+                await KeyRepository.UpdateAsync(EditingKey);
+            }
+
+            await LoadKeys();
+            CloseEditor();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Feil ved lagring: {ex.Message}";
+        }
+    }
+
+    private async Task DeleteKey(Key key)
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", 
+            $"Er du sikker på at du vil slette kjøretøyet '{key.Name}'?\n\nDette vil også fjerne alle tilganger til denne nøkkelen."))
+        {
+            return;
+        }
+
+        try
+        {
+            await KeyRepository.DeleteAsync(key.Id);
+            await LoadKeys();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Feil ved sletting: {ex.Message}";
+        }
+    }
+
+    private void CloseEditor()
+    {
+        ShowEditor = false;
+        EditingKey = new();
+        ErrorMessage = string.Empty;
+    }
+
+    [Inject]
+    private IJSRuntime JSRuntime { get; set; } = null!;
+}

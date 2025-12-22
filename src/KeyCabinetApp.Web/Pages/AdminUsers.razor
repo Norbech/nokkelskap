@@ -1,0 +1,280 @@
+@page "/admin/users"
+@using KeyCabinetApp.Core.Entities
+@using KeyCabinetApp.Core.Interfaces
+@using KeyCabinetApp.Web.Services
+@inject IUserRepository UserRepository
+@inject SessionStateService SessionState
+@inject NavigationManager Navigation
+
+<PageTitle>Brukerhåndtering</PageTitle>
+
+@if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
+{
+    <div class="access-denied">
+        <h2>Ingen tilgang</h2>
+        <p>Du må være administrator for å se denne siden.</p>
+        <button class="btn-primary" @onclick="@(() => Navigation.NavigateTo("/admin"))">Tilbake</button>
+    </div>
+}
+else
+{
+    <div class="admin-container">
+        <div class="admin-header">
+            <h1>👥 Brukerhåndtering</h1>
+            <div>
+                <button class="btn-primary" @onclick="ShowCreateUser">➕ Ny bruker</button>
+                <button class="btn-outline" @onclick="@(() => Navigation.NavigateTo("/admin"))">Tilbake</button>
+            </div>
+        </div>
+
+        @if (ShowEditor)
+        {
+            <div class="modal-overlay" @onclick="CloseEditor">
+                <div class="modal-content" @onclick:stopPropagation="true">
+                    <h2>@(EditingUser.Id == 0 ? "Opprett ny bruker" : "Rediger bruker")</h2>
+                    
+                    <div class="form-group">
+                        <label>Navn *</label>
+                        <input type="text" @bind="EditingUser.Name" placeholder="Fullt navn" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Brukernavn *</label>
+                        <input type="text" @bind="EditingUser.Username" placeholder="brukernavn" />
+                    </div>
+
+                    @if (EditingUser.Id == 0 || ChangePassword)
+                    {
+                        <div class="form-group">
+                            <label>Passord *</label>
+                            <input type="password" @bind="NewPassword" placeholder="Nytt passord" />
+                        </div>
+                    }
+                    else
+                    {
+                        <button class="btn-outline" @onclick="() => ChangePassword = true">Endre passord</button>
+                    }
+
+                    <div class="form-group">
+                        <label>RFID-kort</label>
+                        <input type="text" @bind="EditingUser.RfidTag" placeholder="Skann kort eller skriv nummer" />
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" @bind="EditingUser.IsAdmin" />
+                            Administrator
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" @bind="EditingUser.IsActive" />
+                            Aktiv
+                        </label>
+                    </div>
+
+                    <p class="error-message">@ErrorMessage</p>
+
+                    <div class="button-group">
+                        <button class="btn-outline" @onclick="CloseEditor">Avbryt</button>
+                        <button class="btn-primary" @onclick="SaveUser">Lagre</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <div class="users-table-container">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Navn</th>
+                        <th>Brukernavn</th>
+                        <th>RFID</th>
+                        <th>Admin</th>
+                        <th>Status</th>
+                        <th>Sist innlogget</th>
+                        <th>Handlinger</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var user in Users)
+                    {
+                        <tr>
+                            <td>@user.Name</td>
+                            <td>@user.Username</td>
+                            <td>@(string.IsNullOrEmpty(user.RfidTag) ? "-" : "****" + user.RfidTag[^4..])</td>
+                            <td>@(user.IsAdmin ? "✓" : "")</td>
+                            <td class="@(user.IsActive ? "active" : "inactive")">
+                                @(user.IsActive ? "Aktiv" : "Inaktiv")
+                            </td>
+                            <td>@(user.LastLoginAt?.ToString("dd.MM.yyyy HH:mm") ?? "Aldri")</td>
+                            <td>
+                                <button class="btn-icon" @onclick="() => EditUser(user)" title="Rediger">✏️</button>
+                                @if (user.Id != SessionState.CurrentUser.Id)
+                                {
+                                    <button class="btn-icon" @onclick="() => DeleteUser(user)" title="Slett">🗑️</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (Users.Count == 0)
+            {
+                <div class="no-data">
+                    <p>Ingen brukere funnet.</p>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private List<User> Users { get; set; } = new();
+    private bool ShowEditor { get; set; }
+    private User EditingUser { get; set; } = new();
+    private string NewPassword { get; set; } = string.Empty;
+    private bool ChangePassword { get; set; }
+    private string ErrorMessage { get; set; } = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
+        {
+            return;
+        }
+
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        var allUsers = await UserRepository.GetAllAsync();
+        Users = allUsers.OrderBy(u => u.Name).ToList();
+    }
+
+    private void ShowCreateUser()
+    {
+        EditingUser = new User
+        {
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+        NewPassword = string.Empty;
+        ChangePassword = false;
+        ErrorMessage = string.Empty;
+        ShowEditor = true;
+    }
+
+    private void EditUser(User user)
+    {
+        EditingUser = new User
+        {
+            Id = user.Id,
+            Name = user.Name,
+            Username = user.Username,
+            RfidTag = user.RfidTag,
+            IsAdmin = user.IsAdmin,
+            IsActive = user.IsActive,
+            PasswordHash = user.PasswordHash,
+            PasswordSalt = user.PasswordSalt,
+            CreatedAt = user.CreatedAt,
+            LastLoginAt = user.LastLoginAt
+        };
+        NewPassword = string.Empty;
+        ChangePassword = false;
+        ErrorMessage = string.Empty;
+        ShowEditor = true;
+    }
+
+    private async Task SaveUser()
+    {
+        ErrorMessage = string.Empty;
+
+        // Validering
+        if (string.IsNullOrWhiteSpace(EditingUser.Name))
+        {
+            ErrorMessage = "Navn er påkrevd";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(EditingUser.Username))
+        {
+            ErrorMessage = "Brukernavn er påkrevd";
+            return;
+        }
+
+        if (EditingUser.Id == 0 && string.IsNullOrWhiteSpace(NewPassword))
+        {
+            ErrorMessage = "Passord er påkrevd for ny bruker";
+            return;
+        }
+
+        try
+        {
+            if (EditingUser.Id == 0)
+            {
+                // Ny bruker
+                var salt = BCrypt.Net.BCrypt.GenerateSalt(12);
+                var hash = BCrypt.Net.BCrypt.HashPassword(NewPassword, salt);
+                
+                EditingUser.PasswordHash = hash;
+                EditingUser.PasswordSalt = salt;
+                
+                await UserRepository.AddAsync(EditingUser);
+            }
+            else
+            {
+                // Oppdater eksisterende
+                if (ChangePassword && !string.IsNullOrWhiteSpace(NewPassword))
+                {
+                    var salt = BCrypt.Net.BCrypt.GenerateSalt(12);
+                    var hash = BCrypt.Net.BCrypt.HashPassword(NewPassword, salt);
+                    
+                    EditingUser.PasswordHash = hash;
+                    EditingUser.PasswordSalt = salt;
+                }
+                
+                await UserRepository.UpdateAsync(EditingUser);
+            }
+
+            await LoadUsers();
+            CloseEditor();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Feil ved lagring: {ex.Message}";
+        }
+    }
+
+    private async Task DeleteUser(User user)
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", $"Er du sikker på at du vil slette brukeren '{user.Name}'?"))
+        {
+            return;
+        }
+
+        try
+        {
+            await UserRepository.DeleteAsync(user.Id);
+            await LoadUsers();
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Feil ved sletting: {ex.Message}";
+        }
+    }
+
+    private void CloseEditor()
+    {
+        ShowEditor = false;
+        EditingUser = new();
+        NewPassword = string.Empty;
+        ErrorMessage = string.Empty;
+    }
+
+    [Inject]
+    private IJSRuntime JSRuntime { get; set; } = null!;
+}
