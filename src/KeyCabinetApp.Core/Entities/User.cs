@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace KeyCabinetApp.Core.Entities;
 
 public class User
@@ -14,6 +16,8 @@ public class User
     public DateTime? LastLoginAt { get; set; }
 
     // Navigation properties
+    [JsonIgnore]
     public ICollection<UserKeyAccess> KeyAccess { get; set; } = new List<UserKeyAccess>();
+    [JsonIgnore]
     public ICollection<Event> Events { get; set; } = new List<Event>();
 }

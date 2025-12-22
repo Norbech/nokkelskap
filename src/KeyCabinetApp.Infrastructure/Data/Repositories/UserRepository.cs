@@ -26,8 +26,6 @@ public class UserRepository : IUserRepository
     {
         return await _context.Users
             .AsNoTracking()
-            .Include(u => u.KeyAccess)
-                .ThenInclude(ka => ka.Key)
             .FirstOrDefaultAsync(u => u.Username == username);
     }
 
@@ -35,8 +33,6 @@ public class UserRepository : IUserRepository
     {
         return await _context.Users
             .AsNoTracking()
-            .Include(u => u.KeyAccess)
-                .ThenInclude(ka => ka.Key)
             .FirstOrDefaultAsync(u => u.RfidTag == rfidTag);
     }
 

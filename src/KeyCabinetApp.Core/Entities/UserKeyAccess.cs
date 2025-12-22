@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace KeyCabinetApp.Core.Entities;
 
 public class UserKeyAccess
@@ -8,6 +10,8 @@ public class UserKeyAccess
     public DateTime GrantedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation properties
+    [JsonIgnore]
     public User User { get; set; } = null!;
+    [JsonIgnore]
     public Key Key { get; set; } = null!;
 }

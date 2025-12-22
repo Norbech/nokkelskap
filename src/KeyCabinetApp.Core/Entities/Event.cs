@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace KeyCabinetApp.Core.Entities;
 
 public class Event
@@ -13,6 +15,8 @@ public class Event
     public bool Success { get; set; } = true;
 
     // Navigation properties
+    [JsonIgnore]
     public User? User { get; set; }
+    [JsonIgnore]
     public Key? Key { get; set; }
 }
