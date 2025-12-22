@@ -10,9 +10,8 @@ Dette systemet tilbyr:
 - **Nøkkelkontroll**: Åpne individuelle nøkkelplasser via RS485 seriell kommunikasjon
 - **Tilgangssystem**: Brukerbasert tilgangskontroll for spesifikke nøkler
 - **Omfattende logging**: Alle handlinger logges til SQLite-database med full revisjonsspor
-- **To brukergrensesnitt**:
-  - **Web-app (Blazor)**: Moderne, responsiv web-app tilgjengelig fra nettleser
-  - **WPF Desktop**: Tradisjonell Windows-applikasjon for nettbrett
+- **Brukergrensesnitt**:
+   - **Web-app (Blazor)**: Moderne, responsiv web-app tilgjengelig fra nettleser
 - **Hardware Agent**: Separat tjeneste for RS485-kommunikasjon med sanntids-oppdateringer
 - **SignalR**: Sanntidskommunikasjon mellom web-app og hardware agent
 
@@ -26,7 +25,7 @@ Dette systemet tilbyr:
   - RS485-linjer koblet til adapter
   - 12V strømforsyning
   - Flatbåndkabler til nøkkellåser/reléer/sensorer
-- **RFID-leser**: USB keyboard wedge eller HID-enhet (valgfritt, kun for WPF-app)
+- **RFID-leser**: USB keyboard wedge eller HID-enhet (valgfritt)
 
 ## 🏗️ Arkitektur
 
@@ -38,7 +37,7 @@ KeyCabinetApp/
 │   ├── KeyCabinetApp.Infrastructure/# Database, Serial, SignalR implementasjoner
 │   ├── KeyCabinetApp.Web/           # Blazor Server web-applikasjon (ANBEFALT)
 │   ├── KeyCabinetApp.HardwareAgent/ # Background service for RS485-kommunikasjon
-│   └── KeyCabinetApp.UI/            # WPF desktop-app (legacy)
+
 ├── appsettings.json                 # Global konfigurasjon
 ├── build.ps1                        # Byggescript
 ├── publish.ps1                      # Publiseringscript
@@ -92,12 +91,7 @@ KeyCabinetApp/
    dotnet run
    ```
 
-**WPF Desktop-app (Legacy):**
 
-```powershell
-cd src\KeyCabinetApp.UI
-dotnet run
-```
 
 **Produksjonsbygg:**
 
@@ -106,7 +100,7 @@ Bruk det inkluderte PowerShell-scriptet:
 .\build.ps1
 ```
 
-Dette bygger begge applikasjoner og plasserer output i `publish/` mappen.
+Dette bygger web-applikasjonen og hardware agent, og plasserer output i `publish/` mappen.
 
 ## ⚙️ Konfigurasjon
 
@@ -228,20 +222,7 @@ Web-applikasjonen støtter **RFID-autentisering direkte i nettleseren**:
 **Alternativ metode:**
 - Klikk "LOGG INN MED BRUKERNAVN" for passordautentisering
 
-**WPF Desktop-app:**
 
-For WPF-appen gjelder samme oppsett med keyboard wedge RFID-lesere:
-
-**Konfigurasjon:**
-- Ingen ekstra programvarekonfigurasjon nødvendig
-- Leseren skal sende kort-ID etterfulgt av Enter-tasten
-- Typisk kortformat: numerisk eller alfanumerisk streng
-
-**Testing:**
-1. Åpne Notisblokk
-2. Skann et RFID-kort
-3. Du skal se kort-ID-en dukke opp som tekst
-4. Notér kort-ID-en for brukerregistrering
 
 ## 👥 Brukeradministrasjon
 
@@ -504,13 +485,7 @@ New-NetFirewallRule -DisplayName "KeyCabinet Hardware Agent" `
 
 ### Kioskmodus (Nettbrett/Touch-skjerm)
 
-**For WPF Desktop-app:**
 
-1. Opprett snarvei til `KeyCabinetApp.UI.exe`
-2. Kopier til oppstartsmappen:
-   ```
-   %APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
-   ```
 
 **For Web-app (Fullskjerm-nettleser):**
 
@@ -637,9 +612,7 @@ Dette er allerede fikset i koden med `[JsonIgnore]` attributter. Hvis det oppst�
 - **Applikasjon:** `src\KeyCabinetApp.HardwareAgent\`
 - **Konfigurasjon:** `src\KeyCabinetApp.HardwareAgent\appsettings.json`
 
-**WPF Desktop (Legacy):**
-- **Applikasjon:** `src\KeyCabinetApp.UI\`
-- **Database:** `%APPDATA%\KeyCabinetApp\keycabinet.db`
+
 
 ## 🛠️ Utvikling
 
@@ -674,10 +647,7 @@ KeyCabinetApp/
 │   ├── KeyCabinetApp.HardwareAgent/
 │   │   └── Services/          # SignalR klient, RS485-kommunikasjon
 │   │
-│   └── KeyCabinetApp.UI/      # WPF (legacy)
-│       ├── Views/             # XAML brukerkontroller
-│       ├── ViewModels/        # MVVM view models
-│       └── Converters/        # XAML verdiekonverterere
+
 ```
 
 ### Utvide applikasjonen
@@ -700,7 +670,7 @@ KeyCabinetApp/
 **Tilpasse UI:**
 1. Rediger CSS i `wwwroot/css/` for web-app
 2. Rediger Razor-komponenter i `Pages/` og `Shared/`
-3. For WPF: Rediger XAML-filer i `Views/`
+
 
 **Legge til ny SignalR-funksjonalitet:**
 1. Utvid `HardwareHub.cs` eller opprett ny hub
@@ -747,10 +717,7 @@ Før utrulling til produksjon:
 - [ ] Tren brukere på web-grensesnittet
 - [ ] Sett opp kioskmodus hvis berøringsskjerm brukes
 
-**Legacy WPF-app (hvis brukt):**
-- [ ] Test fullskjerm/kioskmodus på nettbrett
-- [ ] Sett opp autostart ved oppstart
-- [ ] Deaktiver hvilemodus på nettbrett
+
 
 ## 🎓 Hurtigstartguide for brukere
 
