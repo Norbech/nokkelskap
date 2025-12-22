@@ -43,6 +43,36 @@
                           VerticalAlignment="Center"/>
                 
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <!-- Connection Status Indicator -->
+                    <Border Margin="8,0" Padding="8,4" Background="#40FFFFFF" CornerRadius="3">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="10" Height="10" Margin="0,0,6,0" VerticalAlignment="Center">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Setter Property="Fill" Value="#FF4444"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsSerialConnected}" Value="True">
+                                                <Setter Property="Fill" Value="#44FF44"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Foreground="White" FontSize="12" VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="Panel frakoblet"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsSerialConnected}" Value="True">
+                                                <Setter Property="Text" Value="Panel tilkoblet"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                    
                     <Button Content="📋 Logg"
                             Command="{Binding ShowLogViewerCommand}"
                             Visibility="{Binding IsLoggedIn, Converter={StaticResource BooleanToVisibilityConverter}}"

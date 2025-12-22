@@ -1,6 +1,8 @@
 using KeyCabinetApp.Application.Services;
+using KeyCabinetApp.Core.Interfaces;
 using Microsoft.Extensions.Logging;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace KeyCabinetApp.UI.ViewModels;
 
@@ -9,18 +11,23 @@ public class MainViewModel : ViewModelBase
     private readonly AuthenticationService _authService;
     private readonly ILogger<MainViewModel> _logger;
     private readonly IServiceProvider _serviceProvider;
+    private readonly ISerialCommunication _serialCommunication;
+    private readonly DispatcherTimer _connectionCheckTimer;
     
     private ViewModelBase? _currentViewModel;
     private bool _isLoggedIn;
+    private bool _isSerialConnected;
 
     public MainViewModel(
         AuthenticationService authService,
         ILogger<MainViewModel> logger,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        ISerialCommunication serialCommunication)
     {
         _authService = authService;
         _logger = logger;
         _serviceProvider = serviceProvider;
+        _serialCommunication = serialCommunication;
 
         ShowLoginCommand = new RelayCommand(_ => ShowLogin());
         ShowAdminCommand = new RelayCommand(_ => ShowAdmin(), _ => IsAdmin());
@@ -29,6 +36,17 @@ public class MainViewModel : ViewModelBase
         // Subscribe to auth events
         _authService.UserLoggedIn += OnUserLoggedIn;
         _authService.UserLoggedOut += OnUserLoggedOut;
+
+        // Setup connection check timer
+        _connectionCheckTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(2)
+        };
+        _connectionCheckTimer.Tick += async (s, e) => await CheckSerialConnectionAsync();
+        _connectionCheckTimer.Start();
+
+        // Initial connection attempt
+        _ = InitializeSerialConnectionAsync();
 
         // Show login initially
         ShowLogin();
@@ -44,6 +62,12 @@ public class MainViewModel : ViewModelBase
     {
         get => _isLoggedIn;
         set => SetProperty(ref _isLoggedIn, value);
+    }
+
+    public bool IsSerialConnected
+    {
+        get => _isSerialConnected;
+        set => SetProperty(ref _isSerialConnected, value);
     }
 
     public ICommand ShowLoginCommand { get; }
@@ -107,5 +131,50 @@ public class MainViewModel : ViewModelBase
     private bool IsAdmin()
     {
         return _authService.CurrentUser?.IsAdmin ?? false;
+    }
+
+    private async Task InitializeSerialConnectionAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Attempting to connect to serial port...");
+            var connected = await _serialCommunication.ConnectAsync();
+            IsSerialConnected = connected;
+            
+            if (connected)
+            {
+                _logger.LogInformation("Serial port connected successfully");
+            }
+            else
+            {
+                _logger.LogWarning("Failed to connect to serial port");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error connecting to serial port");
+            IsSerialConnected = false;
+        }
+    }
+
+    private async Task CheckSerialConnectionAsync()
+    {
+        try
+        {
+            var wasConnected = IsSerialConnected;
+            IsSerialConnected = _serialCommunication.IsConnected;
+            
+            // Try to reconnect if disconnected
+            if (!IsSerialConnected && !wasConnected)
+            {
+                await _serialCommunication.ConnectAsync();
+                IsSerialConnected = _serialCommunication.IsConnected;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking serial connection");
+            IsSerialConnected = false;
+        }
     }
 }

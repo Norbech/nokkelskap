@@ -46,7 +46,7 @@ public class DatabaseSeeder
                 Username = "admin",
                 PasswordHash = adminHash,
                 PasswordSalt = adminSalt,
-                RfidTag = null, // Set this to your admin RFID card if you have one
+                RfidTag = "0014571466", // Admin RFID card
                 IsAdmin = true,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
@@ -64,7 +64,7 @@ public class DatabaseSeeder
                 Username = "testuser",
                 PasswordHash = testHash,
                 PasswordSalt = testSalt,
-                RfidTag = "1234567890", // Replace with actual test RFID card
+                RfidTag = null, // No RFID for test user
                 IsAdmin = false,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
@@ -112,6 +112,30 @@ public class DatabaseSeeder
                     SlotId = 5,
                     Name = "Kontor",
                     Description = "Nøkkel til kontoret",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                },
+                new Key
+                {
+                    SlotId = 6,
+                    Name = "Verksted",
+                    Description = "Nøkkel til verkstedet",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                },
+                new Key
+                {
+                    SlotId = 7,
+                    Name = "Garasje",
+                    Description = "Nøkkel til garasjen",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                },
+                new Key
+                {
+                    SlotId = 8,
+                    Name = "Reservenøkkel",
+                    Description = "Reserve nøkkel",
                     IsActive = true,
                     CreatedAt = DateTime.UtcNow
                 }
