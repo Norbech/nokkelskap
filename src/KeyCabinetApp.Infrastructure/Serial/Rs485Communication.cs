@@ -54,6 +54,8 @@ public class Rs485Communication : ISerialCommunication, IDisposable
     private readonly object _lock = new object();
     private readonly string _defaultTraceFilePath;
 
+    private const int Rev2FrameLength = 8;
+
     public Rs485Communication(SerialConfig config, ILogger<Rs485Communication> logger)
     {
         _config = config;
@@ -151,17 +153,32 @@ public class Rs485Communication : ISerialCommunication, IDisposable
                 return false;
             }
 
-            if (response.Length > 0)
+            if (response.Length == 0)
             {
-                _logger.LogDebug("Received response for slot {SlotId}: {Response}", slotId, BitConverter.ToString(response));
-            }
-            else
-            {
-                _logger.LogWarning("No response received for slot {SlotId} (bytes written OK)", slotId);
+                _logger.LogWarning("No response received for slot {SlotId}", slotId);
+                return false;
             }
 
-            // Assume success if we managed to write (and optionally got a response).
-            // Add protocol-specific validation here once the expected RX frames are known.
+            if (!TryValidateRev2Frame(response, out var validationError))
+            {
+                _logger.LogWarning("Invalid response frame for slot {SlotId}: {Error}. Raw={Raw}",
+                    slotId, validationError, BitConverter.ToString(response));
+                return false;
+            }
+
+            // Observed behavior (trace): controller echoes the exact frame back.
+            // Be slightly tolerant: require address+command+slot to match.
+            if (!Rev2ResponseMatchesRequest(commandBytes, response))
+            {
+                _logger.LogWarning(
+                    "Unexpected response for slot {SlotId}. TX={Tx} RX={Rx}",
+                    slotId,
+                    BitConverter.ToString(commandBytes),
+                    BitConverter.ToString(response));
+                return false;
+            }
+
+            _logger.LogDebug("Valid response received for slot {SlotId}: {Response}", slotId, BitConverter.ToString(response));
             return true;
         }
         catch (Exception ex)
@@ -227,20 +244,11 @@ public class Rs485Communication : ISerialCommunication, IDisposable
                     // Send command
                     _serialPort.Write(command, 0, command.Length);
 
-                    // Wait a bit for response
-                    Thread.Sleep(100);
-
-                    // Try to read response
-                    if (_serialPort.BytesToRead > 0)
-                    {
-                        byte[] response = new byte[_serialPort.BytesToRead];
-                        _serialPort.Read(response, 0, response.Length);
-                        TraceFrame("RX", response);
-                        return response;
-                    }
-
-                    TraceFrame("RX", Array.Empty<byte>());
-                    return Array.Empty<byte>();
+                    // Read response. For the observed Serial_Rev2 protocol, the response is an 8-byte frame
+                    // AA .. .. .. .. .. .. 55. We wait up to ReadTimeout for a full frame.
+                    var response = ReadRev2Frame(_serialPort, _config.ReadTimeout);
+                    TraceFrame("RX", response);
+                    return response;
                 }
             }
             catch (TimeoutException ex)
@@ -254,6 +262,124 @@ public class Rs485Communication : ISerialCommunication, IDisposable
                 return null;
             }
         });
+    }
+
+    private static bool Rev2ResponseMatchesRequest(byte[] request, byte[] response)
+    {
+        if (request.Length < Rev2FrameLength || response.Length < Rev2FrameLength)
+        {
+            return false;
+        }
+
+        // Layout (based on observed frames):
+        // [0]=0xAA, [1]=addr, [2]=cmd, [3]=0x00, [4]=0x00, [5]=slotOrValue, [6]=xor, [7]=0x55
+        return response[0] == request[0]
+            && response[7] == request[7]
+            && response[1] == request[1]
+            && response[2] == request[2]
+            && response[5] == request[5];
+    }
+
+    private static bool TryValidateRev2Frame(byte[] frame, out string? error)
+    {
+        error = null;
+
+        if (frame.Length != Rev2FrameLength)
+        {
+            error = $"Expected {Rev2FrameLength} bytes, got {frame.Length}";
+            return false;
+        }
+
+        if (frame[0] != 0xAA)
+        {
+            error = "Missing 0xAA start byte";
+            return false;
+        }
+
+        if (frame[7] != 0x55)
+        {
+            error = "Missing 0x55 end byte";
+            return false;
+        }
+
+        byte xor = 0;
+        for (var i = 1; i <= 5; i++)
+        {
+            xor ^= frame[i];
+        }
+
+        if (frame[6] != xor)
+        {
+            error = $"Checksum mismatch (expected {xor:X2}, got {frame[6]:X2})";
+            return false;
+        }
+
+        return true;
+    }
+
+    private static byte[] ReadRev2Frame(SerialPort serialPort, int timeoutMs)
+    {
+        var deadline = DateTime.UtcNow.AddMilliseconds(Math.Max(1, timeoutMs));
+        var buffer = new List<byte>(64);
+
+        while (DateTime.UtcNow < deadline)
+        {
+            var available = serialPort.BytesToRead;
+            if (available > 0)
+            {
+                var tmp = new byte[available];
+                var read = serialPort.Read(tmp, 0, tmp.Length);
+                if (read > 0)
+                {
+                    buffer.AddRange(tmp.AsSpan(0, read).ToArray());
+
+                    if (TryExtractRev2Frame(buffer, out var frame))
+                    {
+                        return frame;
+                    }
+                }
+            }
+
+            Thread.Sleep(10);
+        }
+
+        return Array.Empty<byte>();
+    }
+
+    private static bool TryExtractRev2Frame(List<byte> buffer, out byte[] frame)
+    {
+        frame = Array.Empty<byte>();
+
+        // Scan for a valid 8-byte frame starting with 0xAA and ending with 0x55.
+        for (var start = 0; start <= buffer.Count - Rev2FrameLength; start++)
+        {
+            if (buffer[start] != 0xAA)
+            {
+                continue;
+            }
+
+            if (buffer[start + 7] != 0x55)
+            {
+                continue;
+            }
+
+            var candidate = buffer.GetRange(start, Rev2FrameLength).ToArray();
+            if (TryValidateRev2Frame(candidate, out _))
+            {
+                frame = candidate;
+                // Drop bytes up to end of extracted frame to avoid unbounded growth.
+                buffer.RemoveRange(0, start + Rev2FrameLength);
+                return true;
+            }
+        }
+
+        // Keep the tail in case we have a partial frame.
+        if (buffer.Count > 256)
+        {
+            buffer.RemoveRange(0, buffer.Count - 256);
+        }
+
+        return false;
     }
 
     private void TraceFrame(string direction, byte[] bytes)
