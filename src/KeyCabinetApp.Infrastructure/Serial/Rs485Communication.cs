@@ -17,6 +17,18 @@ public class SerialConfig
     public StopBits StopBits { get; set; } = StopBits.One;
     public int ReadTimeout { get; set; } = 1000;
     public int WriteTimeout { get; set; } = 1000;
+
+    /// <summary>
+    /// When enabled, logs TX/RX frames (hex) to a trace file.
+    /// Useful for reverse-engineering / debugging controller protocols.
+    /// </summary>
+    public bool TraceEnabled { get; set; } = false;
+
+    /// <summary>
+    /// Optional path to write trace lines to. If not set, defaults to
+    /// %APPDATA%\KeyCabinetApp\serial-trace.log
+    /// </summary>
+    public string? TraceFilePath { get; set; }
     
     /// <summary>
     /// Command templates for each slot. Key = SlotId, Value = hex bytes to send
@@ -40,11 +52,16 @@ public class Rs485Communication : ISerialCommunication, IDisposable
     private readonly ILogger<Rs485Communication> _logger;
     private SerialPort? _serialPort;
     private readonly object _lock = new object();
+    private readonly string _defaultTraceFilePath;
 
     public Rs485Communication(SerialConfig config, ILogger<Rs485Communication> logger)
     {
         _config = config;
         _logger = logger;
+        _defaultTraceFilePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "KeyCabinetApp",
+            "serial-trace.log");
     }
 
     public bool IsConnected => _serialPort?.IsOpen ?? false;
@@ -127,16 +144,24 @@ public class Rs485Communication : ISerialCommunication, IDisposable
             }
 
             var response = await SendCommandAsync(commandBytes);
-            
-            // Log the response for debugging
-            if (response != null && response.Length > 0)
+
+            if (response == null)
             {
-                _logger.LogDebug("Received response for slot {SlotId}: {Response}", 
-                    slotId, BitConverter.ToString(response));
+                // SendCommandAsync uses null to signal failures/timeouts.
+                return false;
             }
 
-            // For now, assume success if no exception was thrown
-            // You can add response validation here based on your protocol
+            if (response.Length > 0)
+            {
+                _logger.LogDebug("Received response for slot {SlotId}: {Response}", slotId, BitConverter.ToString(response));
+            }
+            else
+            {
+                _logger.LogWarning("No response received for slot {SlotId} (bytes written OK)", slotId);
+            }
+
+            // Assume success if we managed to write (and optionally got a response).
+            // Add protocol-specific validation here once the expected RX frames are known.
             return true;
         }
         catch (Exception ex)
@@ -193,6 +218,7 @@ public class Rs485Communication : ISerialCommunication, IDisposable
                     }
 
                     _logger.LogDebug("Sending command: {Command}", BitConverter.ToString(command));
+                    TraceFrame("TX", command);
 
                     // Clear buffers
                     _serialPort.DiscardInBuffer();
@@ -209,9 +235,11 @@ public class Rs485Communication : ISerialCommunication, IDisposable
                     {
                         byte[] response = new byte[_serialPort.BytesToRead];
                         _serialPort.Read(response, 0, response.Length);
+                        TraceFrame("RX", response);
                         return response;
                     }
 
+                    TraceFrame("RX", Array.Empty<byte>());
                     return Array.Empty<byte>();
                 }
             }
@@ -226,6 +254,35 @@ public class Rs485Communication : ISerialCommunication, IDisposable
                 return null;
             }
         });
+    }
+
+    private void TraceFrame(string direction, byte[] bytes)
+    {
+        if (!_config.TraceEnabled)
+        {
+            return;
+        }
+
+        try
+        {
+            var tracePath = string.IsNullOrWhiteSpace(_config.TraceFilePath)
+                ? _defaultTraceFilePath
+                : _config.TraceFilePath;
+
+            var directory = Path.GetDirectoryName(tracePath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            var hex = bytes.Length == 0 ? "" : BitConverter.ToString(bytes).Replace("-", " ");
+            var line = $"{DateTime.UtcNow:O} {direction} {hex}{Environment.NewLine}";
+            File.AppendAllText(tracePath, line);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to write serial trace");
+        }
     }
 
     /// <summary>

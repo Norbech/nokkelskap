@@ -50,11 +50,13 @@ public class HardwareHub : Hub
     /// <summary>
     /// Called when hardware agent reports slot status
     /// </summary>
-    public Task ReportSlotStatus(string? status)
+    public async Task ReportSlotStatus(string? status)
     {
         _logger.LogInformation("Slot status: {Status}", status);
         _agentManager.OnStatusResult(status);
-        return Task.CompletedTask;
+
+        // Allow monitoring clients (e.g. diagnostic sniffers) to observe status reports.
+        await Clients.All.SendAsync("SlotStatusReported", status);
     }
 
     public override Task OnConnectedAsync()
