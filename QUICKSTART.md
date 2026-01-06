@@ -2,6 +2,16 @@
 
 ## Quick Start (Lokal testing)
 
+## Enkelt oppsett (anbefalt)
+
+Dobbelklikk `start-local.cmd` i prosjektroten.
+
+- Starter Web + HardwareAgent
+- Åpner nettleser automatisk
+- Logger til `C:\temp\keycabinet-*.log`
+
+Stopper alt igjen med `stop-local.cmd`.
+
 ### Terminal 1: Start Web Server
 ```powershell
 cd "c:\Users\andre\Desktop\App til nøkkelskap\nokkelskap"
