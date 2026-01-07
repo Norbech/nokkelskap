@@ -83,15 +83,68 @@ function Download-File {
     return $false
 }
 
+function Test-WingetAvailable {
+    try {
+        $null = & winget --version 2>$null
+        return $LASTEXITCODE -eq 0
+    } catch {
+        return $false
+    }
+}
+
 function Install-DotNetRuntime {
     Write-Host ""
     Write-Host "=== Installer .NET Runtime ===" -ForegroundColor Cyan
     Write-Host ""
     Write-Host ".NET Runtime er ikke installert." -ForegroundColor Yellow
-    Write-Host "Denne applikasjonen krever .NET 8.0 Runtime for å kjøre." -ForegroundColor White
+    Write-Host "Denne applikasjonen krever .NET 8.0 Runtime for a kjore." -ForegroundColor White
     Write-Host ""
     
-    $install = Read-Host "Vil du laste ned og installere .NET 8.0 SDK nå? (J/N)"
+    # Sjekk om winget er tilgjengelig
+    $hasWinget = Test-WingetAvailable
+    
+    if ($hasWinget) {
+        Write-Host "[OK] Windows Package Manager (winget) er tilgjengelig" -ForegroundColor Green
+        Write-Host ""
+        $install = Read-Host "Vil du installere .NET 8.0 med winget? (J/N)"
+        
+        if ($install -ne 'J' -and $install -ne 'j') {
+            Write-Host ""
+            Write-Host "Installasjon avbrutt." -ForegroundColor Yellow
+            return $false
+        }
+        
+        Write-Host ""
+        Write-Host "Installerer .NET 8.0 SDK via winget..." -ForegroundColor Cyan
+        Write-Host "Dette kan ta noen minutter..." -ForegroundColor Gray
+        Write-Host ""
+        
+        try {
+            & winget install Microsoft.DotNet.SDK.8 --silent --accept-source-agreements --accept-package-agreements
+            
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host ""
+                Write-Host "[OK] .NET 8.0 SDK installert via winget" -ForegroundColor Green
+                Write-Host ""
+                Write-Host "VIKTIG: Du ma starte PowerShell pa nytt for at endringene skal tre i kraft." -ForegroundColor Yellow
+                Write-Host "Lukk dette vinduet og kjor START.cmd pa nytt." -ForegroundColor Yellow
+                Write-Host ""
+                return $true
+            } else {
+                Write-Host ""
+                Write-Host "[FEIL] Winget-installasjon feilet med kode: $LASTEXITCODE" -ForegroundColor Red
+                Write-Host "Prover manuell nedlasting..." -ForegroundColor Yellow
+            }
+        } catch {
+            Write-Host ""
+            Write-Host "[FEIL] Winget-installasjon feilet: $_" -ForegroundColor Red
+            Write-Host "Prover manuell nedlasting..." -ForegroundColor Yellow
+        }
+    }
+    
+    # Fallback til manuell nedlasting
+    Write-Host ""
+    $install = Read-Host "Vil du laste ned .NET 8.0 manuelt? (J/N)"
     
     if ($install -ne 'J' -and $install -ne 'j') {
         Write-Host ""
@@ -104,39 +157,36 @@ function Install-DotNetRuntime {
     $downloadUrl = Get-DotNetDownloadUrl
     
     Write-Host ""
-    Write-Host "Laster ned .NET 8.0 Hosting Bundle..." -ForegroundColor Cyan
-    Write-Host "Størrelse: ~170 MB" -ForegroundColor Gray
-    
-    if (-not (Download-File -Url $downloadUrl -OutputPath $installerPath)) {
-        Write-Host ""
-        Write-Host "Nedlasting feilet. Last ned manuelt:" -ForegroundColor Red
-        Write-Host "https://dotnet.microsoft.com/download/dotnet/8.0" -ForegroundColor White
-        return $false
-    }
-    
+    Write-Host "Apner nettleseren for manuell nedlasting..." -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "Starter installer..." -ForegroundColor Cyan
-    Write-Host "Følg instruksjonene i installasjonsveiviseren." -ForegroundColor Yellow
+    Write-Host "Instruksjoner:" -ForegroundColor Yellow
+    Write-Host "1. Last ned .NET 8.0 SDK eller Runtime fra nettleseren" -ForegroundColor White
+    Write-Host "2. Kjor installasjonsfilen som lastes ned" -ForegroundColor White
+    Write-Host "3. Nar installasjonen er ferdig, lukk dette vinduet" -ForegroundColor White
+    Write-Host "4. Dobbeltklikk pa START.cmd igjen" -ForegroundColor White
     Write-Host ""
     
     try {
-        # Start installeren og vent til den er ferdig
-        $process = Start-Process -FilePath $installerPath -Wait -PassThru
-        
-        if ($process.ExitCode -eq 0) {
-            Write-Host ""
-            Write-Host "[OK] .NET SDK installert" -ForegroundColor Green
-            Write-Host ""
-            Write-Host "VIKTIG: Du må starte PowerShell på nytt for at endringene skal tre i kraft." -ForegroundColor Yellow
-            Write-Host "Lukk dette vinduet og kjør bootstrap.ps1 på nytt." -ForegroundColor Yellow
-            Write-Host ""
-            return $true
-        } else {
-            Write-Host "[FEIL] Installasjon feilet med kode: $($process.ExitCode)" -ForegroundColor Red
-            return $false
-        }
+        Start-Process "https://dotnet.microsoft.com/download/dotnet/8.0"
+        Write-Host "[OK] Nettleser apnet" -ForegroundColor Green
     } catch {
-        Write-Host "[FEIL] Kunne ikke starte installer: $_" -ForegroundColor Red
+        Write-Host "[!] Kunne ikke apne nettleser automatisk" -ForegroundColor Yellow
+        Write-Host "Ga til: https://dotnet.microsoft.com/download/dotnet/8.0" -ForegroundColor Cyan
+    }
+    
+    Write-Host ""
+    Read-Host "Trykk Enter nar du har installert .NET 8.0"
+    
+    # Sjekk om .NET na er installert
+    if (Test-DotNetInstalled) {
+        Write-Host ""
+        Write-Host "[OK] .NET er na installert!" -ForegroundColor Green
+        Write-Host "Du kan na kjore START.cmd" -ForegroundColor White
+        return $true
+    } else {
+        Write-Host ""
+        Write-Host "[!] .NET er fortsatt ikke installert" -ForegroundColor Yellow
+        Write-Host "Start PowerShell pa nytt etter installasjon og kjor START.cmd igjen" -ForegroundColor White
         return $false
     }
 }
