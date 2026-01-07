@@ -1,12 +1,60 @@
 ﻿[CmdletBinding()]
 param(
     [string]$Urls = "http://127.0.0.1:5000",
-    [switch]$NoBrowser
+    [switch]$NoBrowser,
+    [switch]$SkipBootstrap
 )
 
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# Sjekk om .NET er tilgjengelig ved første oppstart
+if (-not $SkipBootstrap) {
+    $dotnetAvailable = $false
+    try {
+        $null = & dotnet --version 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            $dotnetAvailable = $true
+        }
+    } catch {
+        # Ignore
+    }
+
+    if (-not $dotnetAvailable) {
+        Write-Host "⚠️  .NET Runtime ble ikke funnet" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "Starter bootstrap for å laste ned nødvendige avhengigheter..." -ForegroundColor Cyan
+        Write-Host ""
+        
+        $bootstrapScript = Join-Path $root "bootstrap.ps1"
+        if (Test-Path $bootstrapScript) {
+            & $bootstrapScript
+            
+            # Sjekk om bootstrap var vellykket
+            try {
+                $null = & dotnet --version 2>$null
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Host ""
+                    Write-Host "Bootstrap fullført, men .NET er ikke tilgjengelig ennå." -ForegroundColor Yellow
+                    Write-Host "Start PowerShell på nytt og prøv igjen." -ForegroundColor Yellow
+                    exit 1
+                }
+            } catch {
+                Write-Host ""
+                Write-Host "Bootstrap fullført, men .NET er ikke tilgjengelig ennå." -ForegroundColor Yellow
+                Write-Host "Start PowerShell på nytt og prøv igjen." -ForegroundColor Yellow
+                exit 1
+            }
+        } else {
+            Write-Host "✗ bootstrap.ps1 ikke funnet!" -ForegroundColor Red
+            Write-Host "Installer .NET 8.0 Runtime manuelt:" -ForegroundColor White
+            Write-Host "https://dotnet.microsoft.com/download/dotnet/8.0" -ForegroundColor Cyan
+            exit 1
+        }
+    }
+}
+
 $runDir = Join-Path $root ".run"
 $logsDir = Join-Path $root "logs"
 
