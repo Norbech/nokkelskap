@@ -623,6 +623,103 @@ Set-Content -Path (Join-Path $OutputDir "START.cmd") -Value $startCmd -Encoding 
 Set-Content -Path (Join-Path $OutputDir "STOPP.cmd") -Value $stoppCmd -Encoding ascii
 Set-Content -Path (Join-Path $OutputDir "HVORDAN-STARTE.txt") -Value $howToStart -Encoding utf8
 
+# Hjelpescripts
+$fjernBlokkeringCmd = @'
+@echo off
+REM ====================================================
+REM Fjern Windows-blokkering fra alle filer
+REM ====================================================
+
+echo.
+echo Fjerner Windows-blokkering fra alle filer...
+echo.
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem -Path '%~dp0' -Recurse | Unblock-File"
+
+echo.
+echo Ferdig! Prov a kjore START.cmd na.
+echo.
+pause
+'@
+
+$finnComPortCmd = @'
+@echo off
+REM ====================================================
+REM Finn tilgjengelige COM-porter
+REM ====================================================
+
+echo.
+echo ========================================
+echo Tilgjengelige COM-porter
+echo ========================================
+echo.
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+"Write-Host 'Serielle porter funnet pa denne PC-en:' -ForegroundColor Cyan; ^
+Write-Host ''; ^
+Get-WmiObject Win32_SerialPort | Select-Object DeviceID, Description, Status | ^
+Format-Table -AutoSize; ^
+Write-Host ''; ^
+Write-Host 'For a oppdatere agent/appsettings.json:' -ForegroundColor Yellow; ^
+Write-Host '1. Apne: agent\appsettings.json' -ForegroundColor White; ^
+Write-Host '2. Finn linjen med PortName' -ForegroundColor White; ^
+Write-Host '3. Endre til riktig COM-port (f.eks. COM3, COM4, etc.)' -ForegroundColor White; ^
+Write-Host ''; ^
+Write-Host 'Hvis listen er tom:' -ForegroundColor Yellow; ^
+Write-Host '- Koble til USB-til-RS485 adapter' -ForegroundColor White; ^
+Write-Host '- Sjekk i Enhetsbehandling (Device Manager) under Porter (COM og LPT)' -ForegroundColor White"
+
+echo.
+pause
+'@
+
+$sjakkStatusCmd = @'
+@echo off
+REM ====================================================
+REM KeyCabinet Server - Sjekk Status
+REM ====================================================
+
+echo.
+echo ========================================
+echo KeyCabinet Server - Status
+echo ========================================
+echo.
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+"$webPid = Get-Content '.run\web.pid' -ErrorAction SilentlyContinue; ^
+$agentPid = Get-Content '.run\agent.pid' -ErrorAction SilentlyContinue; ^
+Write-Host 'Web Server:' -ForegroundColor Cyan; ^
+if ($webPid) { ^
+    $proc = Get-Process -Id $webPid -ErrorAction SilentlyContinue; ^
+    if ($proc) { Write-Host '  [KJORER] PID: $webPid' -ForegroundColor Green } ^
+    else { Write-Host '  [STOPPET] (PID $webPid finnes ikke)' -ForegroundColor Red } ^
+} else { Write-Host '  [IKKE STARTET]' -ForegroundColor Yellow }; ^
+Write-Host ''; ^
+Write-Host 'Hardware Agent:' -ForegroundColor Cyan; ^
+if ($agentPid) { ^
+    $proc = Get-Process -Id $agentPid -ErrorAction SilentlyContinue; ^
+    if ($proc) { Write-Host '  [KJORER] PID: $agentPid' -ForegroundColor Green } ^
+    else { Write-Host '  [STOPPET] (PID $agentPid finnes ikke)' -ForegroundColor Red } ^
+} else { Write-Host '  [IKKE STARTET]' -ForegroundColor Yellow }; ^
+Write-Host ''; ^
+Write-Host 'Siste feil fra web.err.log:' -ForegroundColor Cyan; ^
+if (Test-Path 'logs\web.err.log') { ^
+    Get-Content 'logs\web.err.log' -Tail 10 | ForEach-Object { Write-Host '  $_' } ^
+} else { Write-Host '  Ingen loggfil funnet' -ForegroundColor Gray }; ^
+Write-Host ''; ^
+Write-Host 'Siste feil fra agent.err.log:' -ForegroundColor Cyan; ^
+if (Test-Path 'logs\agent.err.log') { ^
+    Get-Content 'logs\agent.err.log' -Tail 10 | ForEach-Object { Write-Host '  $_' } ^
+} else { Write-Host '  Ingen loggfil funnet' -ForegroundColor Gray }"
+
+echo.
+pause
+'@
+
+Set-Content -Path (Join-Path $OutputDir "FJERN-BLOKKERING.cmd") -Value $fjernBlokkeringCmd -Encoding ascii
+Set-Content -Path (Join-Path $OutputDir "FINN-COM-PORT.cmd") -Value $finnComPortCmd -Encoding ascii
+Set-Content -Path (Join-Path $OutputDir "SJEKK-STATUS.cmd") -Value $sjakkStatusCmd -Encoding ascii
+
 # Cloudflare templates
 $cloudflareConfig = @'
 # Example config for cloudflared (Cloudflare Tunnel)
