@@ -119,7 +119,7 @@ function Start-DotNetApp {
     param(
         [Parameter(Mandatory=$true)][string]$AppDir,
         [Parameter(Mandatory=$true)][string]$DllName,
-        [string[]]$Arguments = @(),
+        [string[]]$Arguments,
         [Parameter(Mandatory=$true)][string]$StdOut,
         [Parameter(Mandatory=$true)][string]$StdErr
     )
@@ -128,11 +128,20 @@ function Start-DotNetApp {
     $dllPath = Join-Path $AppDir $DllName
 
     if (Test-Path $exePath) {
-        return Start-Process -FilePath $exePath -WorkingDirectory $AppDir -PassThru -ArgumentList $Arguments -RedirectStandardOutput $StdOut -RedirectStandardError $StdErr
+        if ($Arguments -and $Arguments.Count -gt 0) {
+            return Start-Process -FilePath $exePath -WorkingDirectory $AppDir -PassThru -ArgumentList $Arguments -RedirectStandardOutput $StdOut -RedirectStandardError $StdErr
+        } else {
+            return Start-Process -FilePath $exePath -WorkingDirectory $AppDir -PassThru -RedirectStandardOutput $StdOut -RedirectStandardError $StdErr
+        }
     }
 
     if (Test-Path $dllPath) {
-        return Start-Process -FilePath "dotnet" -WorkingDirectory $AppDir -PassThru -ArgumentList @($dllPath) + $Arguments -RedirectStandardOutput $StdOut -RedirectStandardError $StdErr
+        if ($Arguments -and $Arguments.Count -gt 0) {
+            $allArgs = @($dllPath) + $Arguments
+            return Start-Process -FilePath "dotnet" -WorkingDirectory $AppDir -PassThru -ArgumentList $allArgs -RedirectStandardOutput $StdOut -RedirectStandardError $StdErr
+        } else {
+            return Start-Process -FilePath "dotnet" -WorkingDirectory $AppDir -PassThru -ArgumentList @($dllPath) -RedirectStandardOutput $StdOut -RedirectStandardError $StdErr
+        }
     }
 
     throw "Could not find $exePath or $dllPath"
