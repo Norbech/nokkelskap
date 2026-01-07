@@ -9,8 +9,12 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# Sjekk om .NET er tilgjengelig ved fÃ¸rste oppstart
-if (-not $SkipBootstrap) {
+# Sjekk om dette er en self-contained bundle (exe-filer finnes)
+$webExe = Join-Path $root "web\KeyCabinetApp.Web.exe"
+$isSelfContained = Test-Path $webExe
+
+# Bare sjekk etter .NET hvis ikke self-contained
+if (-not $isSelfContained -and -not $SkipBootstrap) {
     $dotnetAvailable = $false
     try {
         $null = & dotnet --version 2>$null
