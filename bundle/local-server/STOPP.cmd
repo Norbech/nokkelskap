@@ -2,7 +2,7 @@
 REM ====================================================
 REM KeyCabinet Server - Stopp
 REM ====================================================
-REM Dobbeltklikk på denne filen for å stoppe serveren
+REM Dobbeltklikk p?? denne filen for ?? stoppe serveren
 REM ====================================================
 
 echo.
@@ -11,7 +11,7 @@ echo KeyCabinet Server - Stopper...
 echo ========================================
 echo.
 
-REM Kjør PowerShell-script med Bypass execution policy
+REM Kj??r PowerShell-script med Bypass execution policy
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0stop.ps1"
 
 pause

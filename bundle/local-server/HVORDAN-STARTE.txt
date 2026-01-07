@@ -1,49 +1,49 @@
-╔═══════════════════════════════════════════════════════════════╗
-║                 HVORDAN STARTE KEYCABINET SERVER              ║
-╚═══════════════════════════════════════════════════════════════╝
+﻿â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘                 HVORDAN STARTE KEYCABINET SERVER              â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-📋 FØRSTE GANGS OPPSETT:
-═══════════════════════════════════════════════════════════════
+ðŸ“‹ FÃ˜RSTE GANGS OPPSETT:
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 1. Kopier hele "local-server"-mappen til din PC
    (Kan plasseres hvor som helst, f.eks. C:\KeyCabinet\)
 
-2. Dobbeltklikk på: START.cmd
+2. Dobbeltklikk pÃ¥: START.cmd
 
-3. Første gang:
-   - Hvis .NET ikke er installert, vil du få spørsmål
-   - Trykk 'J' for å installere automatisk
-   - Installer, lukk vinduet, og kjør START.cmd på nytt
-
-
-🚀 NORMAL BRUK:
-═══════════════════════════════════════════════════════════════
-
-▶ Start server:
-  → Dobbeltklikk på START.cmd
-
-■ Stopp server:
-  → Dobbeltklikk på STOPP.cmd
-
-🌐 Åpne webgrensesnittet:
-  → Gå til http://localhost:5000 i nettleseren
-  → Eller http://127.0.0.1:5000
+3. FÃ¸rste gang:
+   - Hvis .NET ikke er installert, vil du fÃ¥ spÃ¸rsmÃ¥l
+   - Trykk 'J' for Ã¥ installere automatisk
+   - Installer, lukk vinduet, og kjÃ¸r START.cmd pÃ¥ nytt
 
 
-⚙️ KONFIGURERING:
-═══════════════════════════════════════════════════════════════
+ðŸš€ NORMAL BRUK:
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-📁 Hardware-innstillinger (COM-port):
+â–¶ Start server:
+  â†’ Dobbeltklikk pÃ¥ START.cmd
+
+â–  Stopp server:
+  â†’ Dobbeltklikk pÃ¥ STOPP.cmd
+
+ðŸŒ Ã…pne webgrensesnittet:
+  â†’ GÃ¥ til http://localhost:5000 i nettleseren
+  â†’ Eller http://127.0.0.1:5000
+
+
+âš™ï¸ KONFIGURERING:
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+ðŸ“ Hardware-innstillinger (COM-port):
    agent\appsettings.json
    
    Endre "PortName": "COM3" til din COM-port
 
-📁 Web-innstillinger:
+ðŸ“ Web-innstillinger:
    web\appsettings.json
 
 
-📊 LOGGFILER:
-═══════════════════════════════════════════════════════════════
+ðŸ“Š LOGGFILER:
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 Finner du i: logs\
   - web.out.log    (Web-server output)
@@ -52,29 +52,29 @@ Finner du i: logs\
   - agent.err.log  (Hardware agent feil)
 
 
-🔧 FEILSØKING:
-═══════════════════════════════════════════════════════════════
+ðŸ”§ FEILSÃ˜KING:
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-❌ "Ingenting skjer når jeg dobbeltklikker"
-   → Bruk START.cmd, ikke run.ps1 direkte
+âŒ "Ingenting skjer nÃ¥r jeg dobbeltklikker"
+   â†’ Bruk START.cmd, ikke run.ps1 direkte
 
-❌ ".NET er ikke installert"
-   → Dobbeltklikk START.cmd og følg instruksjonene
-   → Eller installer manuelt fra:
+âŒ ".NET er ikke installert"
+   â†’ Dobbeltklikk START.cmd og fÃ¸lg instruksjonene
+   â†’ Eller installer manuelt fra:
      https://dotnet.microsoft.com/download/dotnet/8.0
 
-❌ "Port 5000 er opptatt"
-   → Kjør STOPP.cmd først
-   → Eller endre port i run.ps1
+âŒ "Port 5000 er opptatt"
+   â†’ KjÃ¸r STOPP.cmd fÃ¸rst
+   â†’ Eller endre port i run.ps1
 
-❌ "Kan ikke finne COM-port"
-   → Åpne Enhetsbehandling (Device Manager)
-   → Finn COM-porten under "Porter (COM & LPT)"
-   → Oppdater agent\appsettings.json
+âŒ "Kan ikke finne COM-port"
+   â†’ Ã…pne Enhetsbehandling (Device Manager)
+   â†’ Finn COM-porten under "Porter (COM & LPT)"
+   â†’ Oppdater agent\appsettings.json
 
 
-💾 DATABASE:
-═══════════════════════════════════════════════════════════════
+ðŸ’¾ DATABASE:
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 Lagres automatisk i:
   %APPDATA%\KeyCabinetApp\keycabinet.db
@@ -83,17 +83,17 @@ Backup:
   Kopier filen over for sikkerhet
 
 
-👤 STANDARD INNLOGGING:
-═══════════════════════════════════════════════════════════════
+ðŸ‘¤ STANDARD INNLOGGING:
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 Admin-bruker:
   Brukernavn: admin
   Passord: admin123
 
-⚠️ BYTT PASSORD ETTER FØRSTE INNLOGGING!
+âš ï¸ BYTT PASSORD ETTER FÃ˜RSTE INNLOGGING!
 
 
-📞 HJELP:
-═══════════════════════════════════════════════════════════════
+ðŸ“ž HJELP:
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 Se README.md for mer informasjon

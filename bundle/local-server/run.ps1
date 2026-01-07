@@ -9,11 +9,9 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# Sjekk om .NET er tilgjengelig ved første oppstart
+# Sjekk om .NET er tilgjengelig ved fÃ¸rste oppstart
 if (-not $SkipBootstrap) {
     $dotnetAvailable = $false
-    
-    # Prov standard dotnet-kommando
     try {
         $null = & dotnet --version 2>$null
         if ($LASTEXITCODE -eq 0) {
@@ -21,27 +19,6 @@ if (-not $SkipBootstrap) {
         }
     } catch {
         # Ignore
-    }
-    
-    # Hvis ikke funnet, sjekk vanlige installasjonssteder
-    if (-not $dotnetAvailable) {
-        $commonPaths = @(
-            "$env:ProgramFiles\dotnet\dotnet.exe",
-            "${env:ProgramFiles(x86)}\dotnet\dotnet.exe",
-            "$env:LOCALAPPDATA\Microsoft\dotnet\dotnet.exe"
-        )
-        
-        foreach ($path in $commonPaths) {
-            if (Test-Path $path) {
-                $dotnetDir = Split-Path -Parent $path
-                if ($env:PATH -notlike "*$dotnetDir*") {
-                    $env:PATH = "$dotnetDir;$env:PATH"
-                }
-                $dotnetAvailable = $true
-                Write-Host "[OK] .NET funnet og lagt til PATH" -ForegroundColor Green
-                break
-            }
-        }
     }
 
     if (-not $dotnetAvailable) {
@@ -59,18 +36,18 @@ if (-not $SkipBootstrap) {
                 $null = & dotnet --version 2>$null
                 if ($LASTEXITCODE -ne 0) {
                     Write-Host ""
-                    Write-Host "Bootstrap fullført, men .NET er ikke tilgjengelig ennå." -ForegroundColor Yellow
-                    Write-Host "Start PowerShell på nytt og prøv igjen." -ForegroundColor Yellow
+                    Write-Host "Bootstrap fullfort, men .NET er ikke tilgjengelig enna." -ForegroundColor Yellow
+                    Write-Host "Start PowerShell pa nytt og prov igjen." -ForegroundColor Yellow
                     exit 1
                 }
             } catch {
                 Write-Host ""
-                Write-Host "Bootstrap fullført, men .NET er ikke tilgjengelig ennå." -ForegroundColor Yellow
-                Write-Host "Start PowerShell på nytt og prøv igjen." -ForegroundColor Yellow
+                Write-Host "Bootstrap fullfort, men .NET er ikke tilgjengelig enna." -ForegroundColor Yellow
+                Write-Host "Start PowerShell pa nytt og prov igjen." -ForegroundColor Yellow
                 exit 1
             }
         } else {
-            Write-Host "✗ bootstrap.ps1 ikke funnet!" -ForegroundColor Red
+            Write-Host "[FEIL] bootstrap.ps1 ikke funnet!" -ForegroundColor Red
             Write-Host "Installer .NET 8.0 Runtime manuelt:" -ForegroundColor White
             Write-Host "https://dotnet.microsoft.com/download/dotnet/8.0" -ForegroundColor Cyan
             exit 1
