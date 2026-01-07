@@ -20,6 +20,7 @@ if (-not (Test-Path $downloadDir)) {
 }
 
 function Test-DotNetInstalled {
+    # Prov standard dotnet-kommando
     try {
         $dotnetVersion = & dotnet --version 2>$null
         if ($LASTEXITCODE -eq 0) {
@@ -29,6 +30,36 @@ function Test-DotNetInstalled {
     } catch {
         # Ignore
     }
+    
+    # Sjekk vanlige installasjonssteder
+    $commonPaths = @(
+        "$env:ProgramFiles\dotnet\dotnet.exe",
+        "${env:ProgramFiles(x86)}\dotnet\dotnet.exe",
+        "$env:LOCALAPPDATA\Microsoft\dotnet\dotnet.exe"
+    )
+    
+    foreach ($path in $commonPaths) {
+        if (Test-Path $path) {
+            try {
+                $dotnetVersion = & $path --version 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "[OK] .NET funnet i: $path" -ForegroundColor Green
+                    Write-Host "    Versjon: $dotnetVersion" -ForegroundColor Gray
+                    
+                    # Legg til i PATH for denne sesjonen
+                    $dotnetDir = Split-Path -Parent $path
+                    if ($env:PATH -notlike "*$dotnetDir*") {
+                        $env:PATH = "$dotnetDir;$env:PATH"
+                        Write-Host "[OK] Lagt til i PATH for denne sesjonen" -ForegroundColor Green
+                    }
+                    return $true
+                }
+            } catch {
+                # Ignore
+            }
+        }
+    }
+    
     return $false
 }
 

@@ -12,6 +12,8 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 # Sjekk om .NET er tilgjengelig ved første oppstart
 if (-not $SkipBootstrap) {
     $dotnetAvailable = $false
+    
+    # Prov standard dotnet-kommando
     try {
         $null = & dotnet --version 2>$null
         if ($LASTEXITCODE -eq 0) {
@@ -19,6 +21,27 @@ if (-not $SkipBootstrap) {
         }
     } catch {
         # Ignore
+    }
+    
+    # Hvis ikke funnet, sjekk vanlige installasjonssteder
+    if (-not $dotnetAvailable) {
+        $commonPaths = @(
+            "$env:ProgramFiles\dotnet\dotnet.exe",
+            "${env:ProgramFiles(x86)}\dotnet\dotnet.exe",
+            "$env:LOCALAPPDATA\Microsoft\dotnet\dotnet.exe"
+        )
+        
+        foreach ($path in $commonPaths) {
+            if (Test-Path $path) {
+                $dotnetDir = Split-Path -Parent $path
+                if ($env:PATH -notlike "*$dotnetDir*") {
+                    $env:PATH = "$dotnetDir;$env:PATH"
+                }
+                $dotnetAvailable = $true
+                Write-Host "[OK] .NET funnet og lagt til PATH" -ForegroundColor Green
+                break
+            }
+        }
     }
 
     if (-not $dotnetAvailable) {
