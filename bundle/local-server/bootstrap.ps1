@@ -33,9 +33,9 @@ function Test-DotNetInstalled {
 }
 
 function Get-DotNetDownloadUrl {
-    # .NET 8.0 Runtime (ASP.NET Core) for Windows x64
-    # Oppdatert link - sjekk https://dotnet.microsoft.com/download/dotnet/8.0 for nyeste versjon
-    return "https://download.visualstudio.microsoft.com/download/pr/6224f00f-08da-4e7f-85b1-00d42c2bb3d3/b775de636b91e023574a0bbc291f705a/dotnet-sdk-8.0.101-win-x64.exe"
+    # .NET 8.0 Runtime for Windows x64
+    # Direct link til hosting bundle (inkluderer alt som trengs)
+    return "https://download.visualstudio.microsoft.com/download/pr/907765b0-2bf8-494e-93aa-5ef9553c5d68/a9308dc010617e6716c0e6abd53b05ce/dotnet-hosting-8.0.0-win.exe"
 }
 
 function Download-File {
@@ -46,20 +46,38 @@ function Download-File {
 
     Write-Host "Laster ned fra: $Url" -ForegroundColor Yellow
     Write-Host "Til: $OutputPath" -ForegroundColor White
+    Write-Host "Dette kan ta flere minutter avhengig av internettforbindelsen..." -ForegroundColor Gray
     
     try {
-        # Bruk Invoke-WebRequest for bedre kompatibilitet
-        $ProgressPreference = 'SilentlyContinue'
-        Invoke-WebRequest -Uri $Url -OutFile $OutputPath -UseBasicParsing
-        $ProgressPreference = 'Continue'
+        # Prøv først med WebClient (mer pålitelig for store filer)
+        $webClient = New-Object System.Net.WebClient
+        $webClient.DownloadFile($Url, $OutputPath)
         
         if (Test-Path $OutputPath) {
-            Write-Host "✓ Nedlasting fullført" -ForegroundColor Green
+            $fileSize = (Get-Item $OutputPath).Length / 1MB
+            Write-Host "✓ Nedlasting fullført ($([math]::Round($fileSize, 2)) MB)" -ForegroundColor Green
             return $true
         }
     } catch {
-        Write-Host "✗ Nedlasting feilet: $_" -ForegroundColor Red
-        return $false
+        Write-Host "WebClient feilet, prøver Invoke-WebRequest..." -ForegroundColor Yellow
+        
+        try {
+            # Fallback til Invoke-WebRequest
+            $ProgressPreference = 'SilentlyContinue'
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri $Url -OutFile $OutputPath -UseBasicParsing -TimeoutSec 600
+            $ProgressPreference = 'Continue'
+            
+            if (Test-Path $OutputPath) {
+                $fileSize = (Get-Item $OutputPath).Length / 1MB
+                Write-Host "✓ Nedlasting fullført ($([math]::Round($fileSize, 2)) MB)" -ForegroundColor Green
+                return $true
+            }
+        } catch {
+            Write-Host "✗ Nedlasting feilet: $_" -ForegroundColor Red
+            Write-Host "Feiltype: $($_.Exception.GetType().Name)" -ForegroundColor Red
+            return $false
+        }
     }
     
     return $false
@@ -82,11 +100,12 @@ function Install-DotNetRuntime {
         return $false
     }
     
-    $installerPath = Join-Path $downloadDir "dotnet-sdk-8.0-installer.exe"
+    $installerPath = Join-Path $downloadDir "dotnet-hosting-8.0-installer.exe"
     $downloadUrl = Get-DotNetDownloadUrl
     
     Write-Host ""
-    Write-Host "Laster ned .NET 8.0 SDK..." -ForegroundColor Cyan
+    Write-Host "Laster ned .NET 8.0 Hosting Bundle..." -ForegroundColor Cyan
+    Write-Host "Størrelse: ~170 MB" -ForegroundColor Gray
     
     if (-not (Download-File -Url $downloadUrl -OutputPath $installerPath)) {
         Write-Host ""
