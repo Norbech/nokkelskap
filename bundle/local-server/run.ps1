@@ -22,9 +22,9 @@ if (-not $SkipBootstrap) {
     }
 
     if (-not $dotnetAvailable) {
-        Write-Host "⚠️  .NET Runtime ble ikke funnet" -ForegroundColor Yellow
+        Write-Host "[!] .NET Runtime ble ikke funnet" -ForegroundColor Yellow
         Write-Host ""
-        Write-Host "Starter bootstrap for å laste ned nødvendige avhengigheter..." -ForegroundColor Cyan
+        Write-Host "Starter bootstrap for a laste ned nodvendige avhengigheter..." -ForegroundColor Cyan
         Write-Host ""
         
         $bootstrapScript = Join-Path $root "bootstrap.ps1"

@@ -23,7 +23,7 @@ function Test-DotNetInstalled {
     try {
         $dotnetVersion = & dotnet --version 2>$null
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ .NET er installert (versjon: $dotnetVersion)" -ForegroundColor Green
+            Write-Host "[OK] .NET er installert (versjon: $dotnetVersion)" -ForegroundColor Green
             return $true
         }
     } catch {
@@ -55,7 +55,7 @@ function Download-File {
         
         if (Test-Path $OutputPath) {
             $fileSize = (Get-Item $OutputPath).Length / 1MB
-            Write-Host "✓ Nedlasting fullført ($([math]::Round($fileSize, 2)) MB)" -ForegroundColor Green
+            Write-Host "[OK] Nedlasting fullfort ($([math]::Round($fileSize, 2)) MB)" -ForegroundColor Green
             return $true
         }
     } catch {
@@ -70,11 +70,11 @@ function Download-File {
             
             if (Test-Path $OutputPath) {
                 $fileSize = (Get-Item $OutputPath).Length / 1MB
-                Write-Host "✓ Nedlasting fullført ($([math]::Round($fileSize, 2)) MB)" -ForegroundColor Green
+                Write-Host "[OK] Nedlasting fullfort ($([math]::Round($fileSize, 2)) MB)" -ForegroundColor Green
                 return $true
             }
         } catch {
-            Write-Host "✗ Nedlasting feilet: $_" -ForegroundColor Red
+            Write-Host "[FEIL] Nedlasting feilet: $_" -ForegroundColor Red
             Write-Host "Feiltype: $($_.Exception.GetType().Name)" -ForegroundColor Red
             return $false
         }
@@ -125,18 +125,18 @@ function Install-DotNetRuntime {
         
         if ($process.ExitCode -eq 0) {
             Write-Host ""
-            Write-Host "✓ .NET SDK installert" -ForegroundColor Green
+            Write-Host "[OK] .NET SDK installert" -ForegroundColor Green
             Write-Host ""
             Write-Host "VIKTIG: Du må starte PowerShell på nytt for at endringene skal tre i kraft." -ForegroundColor Yellow
             Write-Host "Lukk dette vinduet og kjør bootstrap.ps1 på nytt." -ForegroundColor Yellow
             Write-Host ""
             return $true
         } else {
-            Write-Host "✗ Installasjon feilet med kode: $($process.ExitCode)" -ForegroundColor Red
+            Write-Host "[FEIL] Installasjon feilet med kode: $($process.ExitCode)" -ForegroundColor Red
             return $false
         }
     } catch {
-        Write-Host "✗ Kunne ikke starte installer: $_" -ForegroundColor Red
+        Write-Host "[FEIL] Kunne ikke starte installer: $_" -ForegroundColor Red
         return $false
     }
 }
@@ -159,7 +159,7 @@ if (-not $SkipDotNetCheck) {
         }
     }
 } else {
-    Write-Host "⊘ Hopper over .NET-sjekk (--SkipDotNetCheck)" -ForegroundColor Yellow
+    Write-Host "[SKIP] Hopper over .NET-sjekk (--SkipDotNetCheck)" -ForegroundColor Yellow
 }
 
 if ($needsRestart) {
@@ -172,7 +172,7 @@ if ($needsRestart) {
 }
 
 Write-Host ""
-Write-Host "✓ Alle avhengigheter er installert!" -ForegroundColor Green
+Write-Host "[OK] Alle avhengigheter er installert!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Du kan nå kjøre applikasjonen med:" -ForegroundColor White
 Write-Host "  .\run.ps1" -ForegroundColor Cyan

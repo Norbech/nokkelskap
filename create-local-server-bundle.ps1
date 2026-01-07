@@ -101,9 +101,9 @@ if (-not $SkipBootstrap) {
     }
 
     if (-not $dotnetAvailable) {
-        Write-Host "⚠️  .NET Runtime ble ikke funnet" -ForegroundColor Yellow
+        Write-Host "[!] .NET Runtime ble ikke funnet" -ForegroundColor Yellow
         Write-Host ""
-        Write-Host "Starter bootstrap for å laste ned nødvendige avhengigheter..." -ForegroundColor Cyan
+        Write-Host "Starter bootstrap for a laste ned nodvendige avhengigheter..." -ForegroundColor Cyan
         Write-Host ""
         
         $bootstrapScript = Join-Path $root "bootstrap.ps1"
@@ -115,18 +115,18 @@ if (-not $SkipBootstrap) {
                 $null = & dotnet --version 2>$null
                 if ($LASTEXITCODE -ne 0) {
                     Write-Host ""
-                    Write-Host "Bootstrap fullført, men .NET er ikke tilgjengelig ennå." -ForegroundColor Yellow
-                    Write-Host "Start PowerShell på nytt og prøv igjen." -ForegroundColor Yellow
+                    Write-Host "Bootstrap fullfort, men .NET er ikke tilgjengelig enna." -ForegroundColor Yellow
+                    Write-Host "Start PowerShell pa nytt og prov igjen." -ForegroundColor Yellow
                     exit 1
                 }
             } catch {
                 Write-Host ""
-                Write-Host "Bootstrap fullført, men .NET er ikke tilgjengelig ennå." -ForegroundColor Yellow
-                Write-Host "Start PowerShell på nytt og prøv igjen." -ForegroundColor Yellow
+                Write-Host "Bootstrap fullfort, men .NET er ikke tilgjengelig enna." -ForegroundColor Yellow
+                Write-Host "Start PowerShell pa nytt og prov igjen." -ForegroundColor Yellow
                 exit 1
             }
         } else {
-            Write-Host "✗ bootstrap.ps1 ikke funnet!" -ForegroundColor Red
+            Write-Host "[FEIL] bootstrap.ps1 ikke funnet!" -ForegroundColor Red
             Write-Host "Installer .NET 8.0 Runtime manuelt:" -ForegroundColor White
             Write-Host "https://dotnet.microsoft.com/download/dotnet/8.0" -ForegroundColor Cyan
             exit 1
@@ -269,8 +269,8 @@ Set-Content -Path (Join-Path $OutputDir "stop.ps1") -Value $stopScript -Encoding
 
 # Bootstrap script for dependency installation
 $bootstrapScript = @'
-# Bootstrap script - Laster ned og installerer nødvendige avhengigheter
-# Denne kjøres automatisk når man starter bundelen første gang
+# Bootstrap script - Laster ned og installerer nodvendige avhengigheter
+# Denne kjores automatisk nar man starter bundelen forste gang
 
 [CmdletBinding()]
 param(
@@ -294,7 +294,7 @@ function Test-DotNetInstalled {
     try {
         $dotnetVersion = & dotnet --version 2>$null
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "✓ .NET er installert (versjon: $dotnetVersion)" -ForegroundColor Green
+            Write-Host "[OK] .NET er installert (versjon: $dotnetVersion)" -ForegroundColor Green
             return $true
         }
     } catch {
@@ -304,9 +304,9 @@ function Test-DotNetInstalled {
 }
 
 function Get-DotNetDownloadUrl {
-    # .NET 8.0 Runtime (ASP.NET Core) for Windows x64
-    # Oppdatert link - sjekk https://dotnet.microsoft.com/download/dotnet/8.0 for nyeste versjon
-    return "https://download.visualstudio.microsoft.com/download/pr/6224f00f-08da-4e7f-85b1-00d42c2bb3d3/b775de636b91e023574a0bbc291f705a/dotnet-sdk-8.0.101-win-x64.exe"
+    # .NET 8.0 Runtime for Windows x64
+    # Direct link til hosting bundle (inkluderer alt som trengs)
+    return "https://download.visualstudio.microsoft.com/download/pr/907765b0-2bf8-494e-93aa-5ef9553c5d68/a9308dc010617e6716c0e6abd53b05ce/dotnet-hosting-8.0.0-win.exe"
 }
 
 function Download-File {
@@ -317,20 +317,38 @@ function Download-File {
 
     Write-Host "Laster ned fra: $Url" -ForegroundColor Yellow
     Write-Host "Til: $OutputPath" -ForegroundColor White
+    Write-Host "Dette kan ta flere minutter avhengig av internettforbindelsen..." -ForegroundColor Gray
     
     try {
-        # Bruk Invoke-WebRequest for bedre kompatibilitet
-        $ProgressPreference = 'SilentlyContinue'
-        Invoke-WebRequest -Uri $Url -OutFile $OutputPath -UseBasicParsing
-        $ProgressPreference = 'Continue'
+        # Prov forst med WebClient (mer palitelig for store filer)
+        $webClient = New-Object System.Net.WebClient
+        $webClient.DownloadFile($Url, $OutputPath)
         
         if (Test-Path $OutputPath) {
-            Write-Host "✓ Nedlasting fullført" -ForegroundColor Green
+            $fileSize = (Get-Item $OutputPath).Length / 1MB
+            Write-Host "[OK] Nedlasting fullfort ($([math]::Round($fileSize, 2)) MB)" -ForegroundColor Green
             return $true
         }
     } catch {
-        Write-Host "✗ Nedlasting feilet: $_" -ForegroundColor Red
-        return $false
+        Write-Host "WebClient feilet, prover Invoke-WebRequest..." -ForegroundColor Yellow
+        
+        try {
+            # Fallback til Invoke-WebRequest
+            $ProgressPreference = 'SilentlyContinue'
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri $Url -OutFile $OutputPath -UseBasicParsing -TimeoutSec 600
+            $ProgressPreference = 'Continue'
+            
+            if (Test-Path $OutputPath) {
+                $fileSize = (Get-Item $OutputPath).Length / 1MB
+                Write-Host "[OK] Nedlasting fullfort ($([math]::Round($fileSize, 2)) MB)" -ForegroundColor Green
+                return $true
+            }
+        } catch {
+            Write-Host "[FEIL] Nedlasting feilet: $_" -ForegroundColor Red
+            Write-Host "Feiltype: $($_.Exception.GetType().Name)" -ForegroundColor Red
+            return $false
+        }
     }
     
     return $false
@@ -341,10 +359,10 @@ function Install-DotNetRuntime {
     Write-Host "=== Installer .NET Runtime ===" -ForegroundColor Cyan
     Write-Host ""
     Write-Host ".NET Runtime er ikke installert." -ForegroundColor Yellow
-    Write-Host "Denne applikasjonen krever .NET 8.0 Runtime for å kjøre." -ForegroundColor White
+    Write-Host "Denne applikasjonen krever .NET 8.0 Runtime for a kjore." -ForegroundColor White
     Write-Host ""
     
-    $install = Read-Host "Vil du laste ned og installere .NET 8.0 SDK nå? (J/N)"
+    $install = Read-Host "Vil du laste ned og installere .NET 8.0 Hosting Bundle na? (J/N)"
     
     if ($install -ne 'J' -and $install -ne 'j') {
         Write-Host ""
@@ -353,11 +371,12 @@ function Install-DotNetRuntime {
         return $false
     }
     
-    $installerPath = Join-Path $downloadDir "dotnet-sdk-8.0-installer.exe"
+    $installerPath = Join-Path $downloadDir "dotnet-hosting-8.0-installer.exe"
     $downloadUrl = Get-DotNetDownloadUrl
     
     Write-Host ""
-    Write-Host "Laster ned .NET 8.0 SDK..." -ForegroundColor Cyan
+    Write-Host "Laster ned .NET 8.0 Hosting Bundle..." -ForegroundColor Cyan
+    Write-Host "Storrelse: ~170 MB" -ForegroundColor Gray
     
     if (-not (Download-File -Url $downloadUrl -OutputPath $installerPath)) {
         Write-Host ""
@@ -368,7 +387,7 @@ function Install-DotNetRuntime {
     
     Write-Host ""
     Write-Host "Starter installer..." -ForegroundColor Cyan
-    Write-Host "Følg instruksjonene i installasjonsveiviseren." -ForegroundColor Yellow
+    Write-Host "Folg instruksjonene i installasjonsveiviseren." -ForegroundColor Yellow
     Write-Host ""
     
     try {
@@ -377,18 +396,18 @@ function Install-DotNetRuntime {
         
         if ($process.ExitCode -eq 0) {
             Write-Host ""
-            Write-Host "✓ .NET SDK installert" -ForegroundColor Green
+            Write-Host "[OK] .NET SDK installert" -ForegroundColor Green
             Write-Host ""
-            Write-Host "VIKTIG: Du må starte PowerShell på nytt for at endringene skal tre i kraft." -ForegroundColor Yellow
-            Write-Host "Lukk dette vinduet og kjør bootstrap.ps1 på nytt." -ForegroundColor Yellow
+            Write-Host "VIKTIG: Du ma starte PowerShell pa nytt for at endringene skal tre i kraft." -ForegroundColor Yellow
+            Write-Host "Lukk dette vinduet og kjor bootstrap.ps1 pa nytt." -ForegroundColor Yellow
             Write-Host ""
             return $true
         } else {
-            Write-Host "✗ Installasjon feilet med kode: $($process.ExitCode)" -ForegroundColor Red
+            Write-Host "[FEIL] Installasjon feilet med kode: $($process.ExitCode)" -ForegroundColor Red
             return $false
         }
     } catch {
-        Write-Host "✗ Kunne ikke starte installer: $_" -ForegroundColor Red
+        Write-Host "[FEIL] Kunne ikke starte installer: $_" -ForegroundColor Red
         return $false
     }
 }
@@ -411,27 +430,27 @@ if (-not $SkipDotNetCheck) {
         }
     }
 } else {
-    Write-Host "⊘ Hopper over .NET-sjekk (--SkipDotNetCheck)" -ForegroundColor Yellow
+    Write-Host "[SKIP] Hopper over .NET-sjekk (--SkipDotNetCheck)" -ForegroundColor Yellow
 }
 
 if ($needsRestart) {
     Write-Host ""
     Write-Host "=== Restart Required ===" -ForegroundColor Yellow
-    Write-Host "Start PowerShell på nytt og kjør:" -ForegroundColor White
+    Write-Host "Start PowerShell pa nytt og kjor:" -ForegroundColor White
     Write-Host "  .\bootstrap.ps1" -ForegroundColor Cyan
     Write-Host ""
     exit 0
 }
 
 Write-Host ""
-Write-Host "✓ Alle avhengigheter er installert!" -ForegroundColor Green
+Write-Host "[OK] Alle avhengigheter er installert!" -ForegroundColor Green
 Write-Host ""
-Write-Host "Du kan nå kjøre applikasjonen med:" -ForegroundColor White
+Write-Host "Du kan na kjore applikasjonen med:" -ForegroundColor White
 Write-Host "  .\run.ps1" -ForegroundColor Cyan
 Write-Host ""
 '@
 
-Set-Content -Path (Join-Path $OutputDir "bootstrap.ps1") -Value $bootstrapScript -Encoding utf8
+Set-Content -Path (Join-Path $OutputDir "bootstrap.ps1") -Value $bootstrapScript -Encoding ascii
 
 # START.cmd - Enkel dobbeltklikk-starter
 $startCmd = @'
