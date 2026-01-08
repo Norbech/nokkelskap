@@ -61,6 +61,14 @@ else
                 <button class="btn-primary" @onclick="ViewLogs">Se logger</button>
             </div>
 
+            <!-- Images Section -->
+            <div class="admin-card">
+                <div class="card-icon">🖼️</div>
+                <h2>Bilder</h2>
+                <p>Last opp/endre bilde som vises på nøkkel-knappene.</p>
+                <button class="btn-primary" @onclick="ManageImages">Administrer bilder</button>
+            </div>
+
             <!-- Hardware Status -->
             <div class="admin-card">
                 <div class="card-icon">🖥️</div>
@@ -120,5 +128,10 @@ else
     private void ViewHardwareStatus()
     {
         Navigation.NavigateTo("/admin/hardware");
+    }
+
+    private void ManageImages()
+    {
+        Navigation.NavigateTo("/admin/images");
     }
 }

@@ -19,7 +19,7 @@ builder.Services.AddSingleton<SerialConfig>(sp =>
 });
 
 builder.Services.AddSingleton<Rs485Communication>();
-builder.Services.AddSingleton<KeyboardWedgeRfidReader>();
+builder.Services.AddSingleton<GlobalKeyboardRfidReader>();
 builder.Services.AddSingleton<SignalRClientService>();
 builder.Services.AddHostedService<HardwareAgentWorker>();
 

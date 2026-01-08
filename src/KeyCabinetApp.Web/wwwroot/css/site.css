@@ -39,6 +39,23 @@ main {
     padding: 20px;
 }
 
+/* App header (logo top-left) */
+.app-header {
+    padding: 12px 20px 0 20px;
+}
+
+.app-brand {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+.app-logo {
+    height: 44px;
+    width: auto;
+    object-fit: contain;
+}
+
 /* Buttons */
 .btn-primary {
     background-color: var(--primary-color);
@@ -107,6 +124,33 @@ main {
     background-color: var(--error-color);
     color: white;
     border-color: var(--error-color);
+}
+
+/* Key card images */
+.key-card-image {
+    width: 100%;
+    height: 80px;
+    object-fit: contain;
+    border-radius: var(--border-radius);
+}
+
+/* Admin images */
+.admin-key-image {
+    width: 100%;
+    height: 110px;
+    object-fit: contain;
+    border-radius: var(--border-radius);
+    background: var(--background-color);
+    border: 1px solid #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 10px 0;
+}
+
+.admin-key-image.placeholder {
+    color: var(--text-secondary);
+    font-size: 14px;
 }
 
 /* Form elements */

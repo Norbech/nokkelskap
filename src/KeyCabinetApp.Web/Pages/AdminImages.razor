@@ -1,0 +1,114 @@
+@page "/admin/images"
+@using KeyCabinetApp.Core.Entities
+@using KeyCabinetApp.Core.Interfaces
+@using KeyCabinetApp.Web.Services
+@inject IKeyRepository KeyRepository
+@inject SessionStateService SessionState
+@inject NavigationManager Navigation
+@inject KeyImageService KeyImages
+
+<PageTitle>Bilder</PageTitle>
+
+@if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
+{
+    <div class="access-denied">
+        <h2>Ingen tilgang</h2>
+        <p>Du må være administrator for å se denne siden.</p>
+        <button class="btn-primary" @onclick="@(() => Navigation.NavigateTo("/admin"))">Tilbake</button>
+    </div>
+}
+else
+{
+    <div class="admin-container">
+        <div class="admin-header">
+            <h1>🖼️ Bilder</h1>
+            <button class="btn-outline" @onclick="@(() => Navigation.NavigateTo("/admin"))">Tilbake</button>
+        </div>
+
+        <p class="info-text">Last opp/endre bilde som vises på nøkkel-knappen. Bildene lagres lokalt på PC-en.</p>
+
+        <div class="keys-grid-admin">
+            @foreach (var key in Keys.OrderBy(k => k.SlotId))
+            {
+                var url = KeyImages.GetImageUrl(key.Id);
+                <div class="key-card-admin @(key.IsActive ? "" : "inactive")">
+                    <div class="slot-badge">Slot @key.SlotId</div>
+                    <h3>@key.Name</h3>
+
+                    @if (!string.IsNullOrWhiteSpace(url))
+                    {
+                        <img class="admin-key-image" src="@url" alt="Bilde for @key.Name" />
+                    }
+                    else
+                    {
+                        <div class="admin-key-image placeholder">Ingen bilde</div>
+                    }
+
+                    <div class="key-actions" style="gap: 8px;">
+                        <InputFile OnChange="async (e) => await Upload(key.Id, e)" accept="image/*" />
+                        @if (!string.IsNullOrWhiteSpace(url))
+                        {
+                            <button class="btn-outline" @onclick="() => Remove(key.Id)">Fjern</button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+
+        <p class="success-message">@Message</p>
+    </div>
+}
+
+@code {
+    private List<Key> Keys { get; set; } = new();
+    private string Message { get; set; } = string.Empty;
+    private bool _hasInitialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_hasInitialized)
+        {
+            await SessionState.InitializeAsync();
+            _hasInitialized = true;
+
+            if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            await LoadKeys();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadKeys()
+    {
+        Keys = (await KeyRepository.GetAllAsync()).ToList();
+    }
+
+    private async Task Upload(int keyId, InputFileChangeEventArgs e)
+    {
+        Message = string.Empty;
+        try
+        {
+            var file = e.File;
+            var (ok, error) = await KeyImages.SaveAsync(keyId, file);
+            Message = ok ? "✓ Lagret bilde" : $"❌ {error}";
+        }
+        catch (Exception ex)
+        {
+            Message = $"❌ {ex.Message}";
+        }
+
+        await LoadKeys();
+        StateHasChanged();
+    }
+
+    private void Remove(int keyId)
+    {
+        var (ok, error) = KeyImages.Remove(keyId);
+        Message = ok ? "✓ Fjernet bilde" : $"❌ {error}";
+        StateHasChanged();
+    }
+}

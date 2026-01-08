@@ -51,8 +51,15 @@ public class HardwareAgentManager
 
     public void OnRfidScanned(string rfidTag)
     {
-        _logger.LogInformation("RFID scan received from agent");
+        _logger.LogInformation("RFID scan received from agent: {RfidTag}", MaskRfid(rfidTag));
         RfidScanned?.Invoke(this, rfidTag);
+    }
+
+    private static string MaskRfid(string rfid)
+    {
+        if (string.IsNullOrEmpty(rfid) || rfid.Length < 4)
+            return "****";
+        return rfid[..2] + new string('*', rfid.Length - 4) + rfid[^2..];
     }
 
     public void OnCommandResult(bool success)

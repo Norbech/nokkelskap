@@ -280,6 +280,179 @@ if (-not $stoppedWeb -and -not $stoppedAgent) {
 Set-Content -Path (Join-Path $OutputDir "run.ps1") -Value $runScript -Encoding utf8
 Set-Content -Path (Join-Path $OutputDir "stop.ps1") -Value $stopScript -Encoding utf8
 
+# Autostart (Task Scheduler) scripts for running without visible terminal windows
+$bundleRunWebHidden = @'
+param(
+    [string]$Urls = "http://127.0.0.1:5000"
+)
+
+$ErrorActionPreference = 'Stop'
+
+$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$runDir = Join-Path $root '.run'
+$logsDir = Join-Path $root 'logs'
+New-Item -ItemType Directory -Force -Path $runDir,$logsDir | Out-Null
+
+$pidFile = Join-Path $runDir 'web.pid'
+
+$existing = Get-Process -Name 'KeyCabinetApp.Web' -ErrorAction SilentlyContinue
+if ($existing) {
+    Set-Content -Path $pidFile -Value $existing[0].Id -Encoding ascii
+    exit 0
+}
+
+$webDir = Join-Path $root 'web'
+$webExe = Join-Path $webDir 'KeyCabinetApp.Web.exe'
+$webDll = Join-Path $webDir 'KeyCabinetApp.Web.dll'
+
+$webOut = Join-Path $logsDir 'web.out.log'
+$webErr = Join-Path $logsDir 'web.err.log'
+
+if (Test-Path $webExe) {
+    $p = Start-Process -FilePath $webExe -WorkingDirectory $webDir -WindowStyle Hidden -PassThru -ArgumentList @('--urls', $Urls) -RedirectStandardOutput $webOut -RedirectStandardError $webErr
+} elseif (Test-Path $webDll) {
+    $p = Start-Process -FilePath 'dotnet' -WorkingDirectory $webDir -WindowStyle Hidden -PassThru -ArgumentList @($webDll, '--urls', $Urls) -RedirectStandardOutput $webOut -RedirectStandardError $webErr
+} else {
+    throw "Could not find $webExe or $webDll"
+}
+
+Set-Content -Path $pidFile -Value $p.Id -Encoding ascii
+'@
+
+$bundleRunAgentHidden = @'
+$ErrorActionPreference = 'Stop'
+
+$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$runDir = Join-Path $root '.run'
+$logsDir = Join-Path $root 'logs'
+New-Item -ItemType Directory -Force -Path $runDir,$logsDir | Out-Null
+
+$pidFile = Join-Path $runDir 'agent.pid'
+
+$existing = Get-Process -Name 'KeyCabinetApp.HardwareAgent' -ErrorAction SilentlyContinue
+if ($existing) {
+    Set-Content -Path $pidFile -Value $existing[0].Id -Encoding ascii
+    exit 0
+}
+
+$agentDir = Join-Path $root 'agent'
+$agentExe = Join-Path $agentDir 'KeyCabinetApp.HardwareAgent.exe'
+$agentDll = Join-Path $agentDir 'KeyCabinetApp.HardwareAgent.dll'
+
+$agentOut = Join-Path $logsDir 'agent.out.log'
+$agentErr = Join-Path $logsDir 'agent.err.log'
+
+if (Test-Path $agentExe) {
+    $p = Start-Process -FilePath $agentExe -WorkingDirectory $agentDir -WindowStyle Hidden -PassThru -RedirectStandardOutput $agentOut -RedirectStandardError $agentErr
+} elseif (Test-Path $agentDll) {
+    $p = Start-Process -FilePath 'dotnet' -WorkingDirectory $agentDir -WindowStyle Hidden -PassThru -ArgumentList @($agentDll) -RedirectStandardOutput $agentOut -RedirectStandardError $agentErr
+} else {
+    throw "Could not find $agentExe or $agentDll"
+}
+
+Set-Content -Path $pidFile -Value $p.Id -Encoding ascii
+'@
+
+$bundleInstallAutostart = @'
+param(
+    [switch]$RunNow
+)
+
+$ErrorActionPreference = 'Stop'
+
+$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+    Write-Host "Re-launching as Administrator..." -ForegroundColor Yellow
+    $argList = @(
+        '-NoProfile',
+        '-ExecutionPolicy', 'Bypass',
+        '-File', ('"{0}"' -f $PSCommandPath)
+    )
+    if ($RunNow) { $argList += '-RunNow' }
+    Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList ($argList -join ' ')
+    exit 0
+}
+
+$root = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+$webTaskName = 'KeyCabinet Web'
+$agentTaskName = 'KeyCabinet Hardware Agent'
+
+$ps = (Get-Command powershell).Source
+
+$webScript = Join-Path $root 'run-web-hidden.ps1'
+$agentScript = Join-Path $root 'run-agent-hidden.ps1'
+
+$webAction = New-ScheduledTaskAction -Execute $ps -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File $webScript" -WorkingDirectory $root
+$agentAction = New-ScheduledTaskAction -Execute $ps -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File $agentScript" -WorkingDirectory $root
+
+$trigger = New-ScheduledTaskTrigger -AtLogOn
+$principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Highest
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -Hidden
+
+Unregister-ScheduledTask -TaskName $webTaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+Unregister-ScheduledTask -TaskName $agentTaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+
+Register-ScheduledTask -TaskName $webTaskName -Action $webAction -Trigger $trigger -Principal $principal -Settings $settings | Out-Null
+Register-ScheduledTask -TaskName $agentTaskName -Action $agentAction -Trigger $trigger -Principal $principal -Settings $settings | Out-Null
+
+Write-Host "Installed autostart tasks:" -ForegroundColor Green
+Write-Host "- $webTaskName" -ForegroundColor Green
+Write-Host "- $agentTaskName" -ForegroundColor Green
+
+if ($RunNow) {
+    schtasks /Run /TN "$webTaskName" | Out-Null
+    schtasks /Run /TN "$agentTaskName" | Out-Null
+    Write-Host "Started tasks." -ForegroundColor Green
+}
+'@
+
+$bundleRemoveAutostart = @'
+$ErrorActionPreference = 'Stop'
+
+$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+    Write-Host "Re-launching as Administrator..." -ForegroundColor Yellow
+    $argList = @(
+        '-NoProfile',
+        '-ExecutionPolicy', 'Bypass',
+        '-File', ('"{0}"' -f $PSCommandPath)
+    )
+    Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList ($argList -join ' ')
+    exit 0
+}
+
+$webTaskName = 'KeyCabinet Web'
+$agentTaskName = 'KeyCabinet Hardware Agent'
+
+Unregister-ScheduledTask -TaskName $webTaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+Unregister-ScheduledTask -TaskName $agentTaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+
+Write-Host "Removed autostart tasks (if present)." -ForegroundColor Green
+'@
+
+$bundleStatusAutostart = @'
+$ErrorActionPreference = 'SilentlyContinue'
+
+$webTaskName = 'KeyCabinet Web'
+$agentTaskName = 'KeyCabinet Hardware Agent'
+
+Write-Host "== Scheduled Tasks ==" -ForegroundColor Cyan
+Get-ScheduledTask -TaskName $webTaskName, $agentTaskName | Select-Object TaskName, State | Format-Table -AutoSize
+
+Write-Host "`n== Processes ==" -ForegroundColor Cyan
+Get-Process -Name 'KeyCabinetApp.Web','KeyCabinetApp.HardwareAgent' | Select-Object ProcessName, Id, StartTime | Format-Table -AutoSize
+
+Write-Host "`n== Port 5000 ==" -ForegroundColor Cyan
+Get-NetTCPConnection -LocalPort 5000 -State Listen | Select-Object LocalAddress, LocalPort, OwningProcess | Format-Table -AutoSize
+'@
+
+Set-Content -Path (Join-Path $OutputDir 'run-web-hidden.ps1') -Value $bundleRunWebHidden -Encoding utf8
+Set-Content -Path (Join-Path $OutputDir 'run-agent-hidden.ps1') -Value $bundleRunAgentHidden -Encoding utf8
+Set-Content -Path (Join-Path $OutputDir 'install-autostart.ps1') -Value $bundleInstallAutostart -Encoding utf8
+Set-Content -Path (Join-Path $OutputDir 'remove-autostart.ps1') -Value $bundleRemoveAutostart -Encoding utf8
+Set-Content -Path (Join-Path $OutputDir 'status-autostart.ps1') -Value $bundleStatusAutostart -Encoding utf8
+
 # Bootstrap script for dependency installation
 $bootstrapScript = @'
 # Bootstrap script - Laster ned og installerer nodvendige avhengigheter

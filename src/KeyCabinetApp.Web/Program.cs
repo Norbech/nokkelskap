@@ -5,6 +5,7 @@ using KeyCabinetApp.Infrastructure.Data.Repositories;
 using KeyCabinetApp.Web.Hubs;
 using KeyCabinetApp.Web.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,6 +56,9 @@ builder.Services.AddScoped<SessionStateService>();
 // Hardware Agent connection manager
 builder.Services.AddSingleton<HardwareAgentManager>();
 
+// Key images (stored on disk under %APPDATA%\KeyCabinetApp\key-images and served via /key-images)
+builder.Services.AddSingleton<KeyImageService>();
+
 var app = builder.Build();
 
 // Initialize database
@@ -78,6 +82,18 @@ if (!app.Environment.IsDevelopment())
 
 // app.UseHttpsRedirection(); // Disabled - we're running HTTP only on port 5000
 app.UseStaticFiles();
+
+var keyImagesDir = Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+    "KeyCabinetApp",
+    "key-images");
+Directory.CreateDirectory(keyImagesDir);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(keyImagesDir),
+    RequestPath = "/key-images"
+});
+
 app.UseRouting();
 
 app.MapBlazorHub();

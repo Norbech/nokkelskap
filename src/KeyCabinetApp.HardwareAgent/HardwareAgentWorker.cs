@@ -11,13 +11,13 @@ public class HardwareAgentWorker : BackgroundService
 {
     private readonly SignalRClientService _signalRClient;
     private readonly Rs485Communication _serialComm;
-    private readonly KeyboardWedgeRfidReader _rfidReader;
+    private readonly GlobalKeyboardRfidReader _rfidReader;
     private readonly ILogger<HardwareAgentWorker> _logger;
 
     public HardwareAgentWorker(
         SignalRClientService signalRClient,
         Rs485Communication serialComm,
-        KeyboardWedgeRfidReader rfidReader,
+        GlobalKeyboardRfidReader rfidReader,
         ILogger<HardwareAgentWorker> logger)
     {
         _signalRClient = signalRClient;
