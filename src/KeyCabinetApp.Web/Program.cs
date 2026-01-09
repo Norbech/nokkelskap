@@ -9,12 +9,20 @@ using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Kestrel to listen on all network interfaces (both IPv4 and IPv6)
-builder.WebHost.ConfigureKestrel(serverOptions =>
+// Default to listening on all interfaces on port 5000 (HTTP only),
+// but allow overrides via --urls / ASPNETCORE_URLS / configuration.
+var urlsFromConfig = builder.Configuration["urls"];
+var urlsFromEnv = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
+var urlsProvidedInArgs = args.Any(a =>
+    a.Equals("--urls", StringComparison.OrdinalIgnoreCase) ||
+    a.StartsWith("--urls=", StringComparison.OrdinalIgnoreCase));
+
+if (string.IsNullOrWhiteSpace(urlsFromConfig) &&
+    string.IsNullOrWhiteSpace(urlsFromEnv) &&
+    !urlsProvidedInArgs)
 {
-    serverOptions.ListenAnyIP(5000); // IPv4 and IPv6
-    serverOptions.Listen(System.Net.IPAddress.Any, 5000); // Explicit IPv4
-});
+    builder.WebHost.UseUrls("http://0.0.0.0:5000");
+}
 
 // Add services to the container.
 builder.Services.AddRazorPages();

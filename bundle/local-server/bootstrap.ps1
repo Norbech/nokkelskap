@@ -19,17 +19,55 @@ if (-not (Test-Path $downloadDir)) {
     New-Item -ItemType Directory -Force -Path $downloadDir | Out-Null
 }
 
-function Test-DotNetInstalled {
+function Resolve-DotNetExe {
+    $candidates = @(
+        (Join-Path $env:ProgramFiles 'dotnet\dotnet.exe'),
+        (Join-Path ${env:ProgramFiles(x86)} 'dotnet\dotnet.exe')
+    )
+
+    foreach ($p in $candidates) {
+        if ($p -and (Test-Path $p)) { return $p }
+    }
+
     try {
-        $dotnetVersion = & dotnet --version 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "[OK] .NET er installert (versjon: $dotnetVersion)" -ForegroundColor Green
-            return $true
-        }
+        $cmd = Get-Command dotnet -ErrorAction SilentlyContinue
+        if ($cmd -and $cmd.Source) { return $cmd.Source }
     } catch {
         # Ignore
     }
-    return $false
+
+    return $null
+}
+
+function Test-DotNetInstalled {
+    $dotnetExe = Resolve-DotNetExe
+    if (-not $dotnetExe) { return $false }
+
+    # Sikrer at dotnet-dir ligger i PATH i denne prosessen
+    $dotnetDir = Split-Path -Parent $dotnetExe
+    if ($dotnetDir -and ($env:PATH -notlike "*${dotnetDir}*")) {
+        $env:PATH = "$dotnetDir;$env:PATH"
+    }
+
+    try {
+        $dotnetVersion = & $dotnetExe --version 2>$null
+        if ($LASTEXITCODE -ne 0) { return $false }
+
+        $runtimes = & $dotnetExe --list-runtimes 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $runtimes) { return $false }
+
+        $hasNetCore = ($runtimes | Select-String -SimpleMatch 'Microsoft.NETCore.App 8.').Count -gt 0
+        $hasAspNet = ($runtimes | Select-String -SimpleMatch 'Microsoft.AspNetCore.App 8.').Count -gt 0
+
+        if ($hasNetCore -and $hasAspNet) {
+            Write-Host "[OK] .NET er installert (versjon: $dotnetVersion)" -ForegroundColor Green
+            return $true
+        }
+
+        return $false
+    } catch {
+        return $false
+    }
 }
 
 function Get-DotNetDownloadUrl {
@@ -88,7 +126,7 @@ function Install-DotNetRuntime {
     Write-Host "=== Installer .NET Runtime ===" -ForegroundColor Cyan
     Write-Host ""
     Write-Host ".NET Runtime er ikke installert." -ForegroundColor Yellow
-    Write-Host "Denne applikasjonen krever .NET 8.0 Runtime for a kjore." -ForegroundColor White
+    Write-Host "Denne applikasjonen krever .NET 8.0 Runtime (inkl. ASP.NET Core Runtime) for a kjore." -ForegroundColor White
     Write-Host ""
     
     $install = Read-Host "Vil du laste ned og installere .NET 8.0 Hosting Bundle na? (J/N)"
@@ -125,7 +163,7 @@ function Install-DotNetRuntime {
         
         if ($process.ExitCode -eq 0) {
             Write-Host ""
-            Write-Host "[OK] .NET SDK installert" -ForegroundColor Green
+            Write-Host "[OK] .NET Hosting Bundle installert" -ForegroundColor Green
             Write-Host ""
             Write-Host "VIKTIG: Du ma starte PowerShell pa nytt for at endringene skal tre i kraft." -ForegroundColor Yellow
             Write-Host "Lukk dette vinduet og kjor bootstrap.ps1 pa nytt." -ForegroundColor Yellow

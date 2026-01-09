@@ -9,23 +9,61 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 
+function Resolve-DotNetExe {
+    $candidates = @(
+        (Join-Path $env:ProgramFiles 'dotnet\dotnet.exe'),
+        (Join-Path ${env:ProgramFiles(x86)} 'dotnet\dotnet.exe')
+    )
+
+    foreach ($p in $candidates) {
+        if ($p -and (Test-Path $p)) { return $p }
+    }
+
+    try {
+        $cmd = Get-Command dotnet -ErrorAction SilentlyContinue
+        if ($cmd -and $cmd.Source) { return $cmd.Source }
+    } catch {
+        # Ignore
+    }
+
+    return $null
+}
+
+function Test-RequiredDotNetRuntimes {
+    param([Parameter(Mandatory = $true)][string]$DotNetExe)
+
+    try {
+        $runtimes = & $DotNetExe --list-runtimes 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $runtimes) { return $false }
+
+        $hasNetCore = ($runtimes | Select-String -SimpleMatch 'Microsoft.NETCore.App 8.').Count -gt 0
+        $hasAspNet = ($runtimes | Select-String -SimpleMatch 'Microsoft.AspNetCore.App 8.').Count -gt 0
+        return ($hasNetCore -and $hasAspNet)
+    } catch {
+        return $false
+    }
+}
+
 # Sjekk om dette er en self-contained bundle (exe-filer finnes)
 $webExe = Join-Path $root "web\KeyCabinetApp.Web.exe"
 $isSelfContained = Test-Path $webExe
 
 # Bare sjekk etter .NET hvis ikke self-contained
 if (-not $isSelfContained -and -not $SkipBootstrap) {
-    $dotnetAvailable = $false
-    try {
-        $null = & dotnet --version 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            $dotnetAvailable = $true
+    $dotnetExe = Resolve-DotNetExe
+    $dotnetReady = $false
+
+    if ($dotnetExe) {
+        # Sikrer at dotnet-dir ligger i PATH i denne prosessen (nyttig for underprosesser)
+        $dotnetDir = Split-Path -Parent $dotnetExe
+        if ($dotnetDir -and ($env:PATH -notlike "*${dotnetDir}*")) {
+            $env:PATH = "$dotnetDir;$env:PATH"
         }
-    } catch {
-        # Ignore
+
+        $dotnetReady = Test-RequiredDotNetRuntimes -DotNetExe $dotnetExe
     }
 
-    if (-not $dotnetAvailable) {
+    if (-not $dotnetReady) {
         Write-Host "[!] .NET Runtime ble ikke funnet" -ForegroundColor Yellow
         Write-Host ""
         Write-Host "Starter bootstrap for a laste ned nodvendige avhengigheter..." -ForegroundColor Cyan
@@ -36,18 +74,11 @@ if (-not $isSelfContained -and -not $SkipBootstrap) {
             & $bootstrapScript
             
             # Sjekk om bootstrap var vellykket
-            try {
-                $null = & dotnet --version 2>$null
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Host ""
-                    Write-Host "Bootstrap fullfort, men .NET er ikke tilgjengelig enna." -ForegroundColor Yellow
-                    Write-Host "Start PowerShell pa nytt og prov igjen." -ForegroundColor Yellow
-                    exit 1
-                }
-            } catch {
-                Write-Host ""
+            $dotnetExe2 = Resolve-DotNetExe
+            if (-not $dotnetExe2 -or -not (Test-RequiredDotNetRuntimes -DotNetExe $dotnetExe2)) {
+                Write-Host "";
                 Write-Host "Bootstrap fullfort, men .NET er ikke tilgjengelig enna." -ForegroundColor Yellow
-                Write-Host "Start PowerShell pa nytt og prov igjen." -ForegroundColor Yellow
+                Write-Host "Lukk terminalen, apne PowerShell pa nytt, og prov igjen." -ForegroundColor Yellow
                 exit 1
             }
         } else {
@@ -100,6 +131,7 @@ function Start-DotNetApp {
     param(
         [Parameter(Mandatory=$true)][string]$AppDir,
         [Parameter(Mandatory=$true)][string]$DllName,
+        [string]$DotNetExe,
         [string[]]$Arguments,
         [Parameter(Mandatory=$true)][string]$StdOut,
         [Parameter(Mandatory=$true)][string]$StdErr
@@ -117,11 +149,18 @@ function Start-DotNetApp {
     }
 
     if (Test-Path $dllPath) {
+        if (-not $DotNetExe) {
+            $DotNetExe = Resolve-DotNetExe
+        }
+        if (-not $DotNetExe) {
+            throw "dotnet.exe not found. Install .NET 8 (Hosting Bundle) or rebuild bundle as self-contained."
+        }
+
         if ($Arguments -and $Arguments.Count -gt 0) {
             $allArgs = @($dllPath) + $Arguments
-            return Start-Process -FilePath "dotnet" -WorkingDirectory $AppDir -PassThru -ArgumentList $allArgs -RedirectStandardOutput $StdOut -RedirectStandardError $StdErr
+            return Start-Process -FilePath $DotNetExe -WorkingDirectory $AppDir -PassThru -ArgumentList $allArgs -RedirectStandardOutput $StdOut -RedirectStandardError $StdErr
         } else {
-            return Start-Process -FilePath "dotnet" -WorkingDirectory $AppDir -PassThru -ArgumentList @($dllPath) -RedirectStandardOutput $StdOut -RedirectStandardError $StdErr
+            return Start-Process -FilePath $DotNetExe -WorkingDirectory $AppDir -PassThru -ArgumentList @($dllPath) -RedirectStandardOutput $StdOut -RedirectStandardError $StdErr
         }
     }
 
@@ -132,11 +171,12 @@ $webDir = Join-Path $root "web"
 $agentDir = Join-Path $root "agent"
 
 Write-Host "Starting Web..." -ForegroundColor Cyan
-$pWeb = Start-DotNetApp -AppDir $webDir -DllName "KeyCabinetApp.Web.dll" -Arguments @("--urls", $Urls) -StdOut $webOut -StdErr $webErr
+$dotnetExeForRun = if ($isSelfContained) { $null } else { Resolve-DotNetExe }
+$pWeb = Start-DotNetApp -AppDir $webDir -DllName "KeyCabinetApp.Web.dll" -DotNetExe $dotnetExeForRun -Arguments @("--urls", $Urls) -StdOut $webOut -StdErr $webErr
 Set-Content -Path $webPidFile -Value $pWeb.Id -Encoding ascii
 
 Write-Host "Starting HardwareAgent..." -ForegroundColor Cyan
-$pAgent = Start-DotNetApp -AppDir $agentDir -DllName "KeyCabinetApp.HardwareAgent.dll" -StdOut $agentOut -StdErr $agentErr
+$pAgent = Start-DotNetApp -AppDir $agentDir -DllName "KeyCabinetApp.HardwareAgent.dll" -DotNetExe $dotnetExeForRun -StdOut $agentOut -StdErr $agentErr
 Set-Content -Path $agentPidFile -Value $pAgent.Id -Encoding ascii
 
 Write-Host "Started." -ForegroundColor Green
