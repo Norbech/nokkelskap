@@ -11,6 +11,11 @@ namespace KeyCabinetApp.Infrastructure.Serial;
 public class SerialConfig
 {
     public string PortName { get; set; } = "COM3";
+    /// <summary>
+    /// When enabled, the agent will try to find a working COM port if PortName is missing.
+    /// Useful when Windows assigns different COM numbers across machines.
+    /// </summary>
+    public bool AutoDetectPort { get; set; } = true;
     public int BaudRate { get; set; } = 9600;
     public int DataBits { get; set; } = 8;
     public Parity Parity { get; set; } = Parity.None;
@@ -80,60 +85,126 @@ public class Rs485Communication : ISerialCommunication, IDisposable
                     return true;
                 }
 
+                var availablePorts = Array.Empty<string>();
                 try
                 {
-                    _serialPort?.Dispose();
-                    _serialPort = new SerialPort
-                    {
-                        PortName = _config.PortName,
-                        BaudRate = _config.BaudRate,
-                        DataBits = _config.DataBits,
-                        Parity = _config.Parity,
-                        StopBits = _config.StopBits,
-                        ReadTimeout = _config.ReadTimeout,
-                        WriteTimeout = _config.WriteTimeout,
-                        Handshake = Handshake.None,
-                        DtrEnable = false,
-                        RtsEnable = false
-                    };
-
-                    _serialPort.Open();
-                    _logger.LogInformation("Serial port {PortName} opened successfully", _config.PortName);
-                    return true;
+                    availablePorts = SerialPort.GetPortNames();
                 }
-                catch (Exception ex)
+                catch
                 {
-                    var availablePorts = Array.Empty<string>();
-                    try
+                    // Ignore enumeration issues.
+                }
+
+                static string NormalizePort(string p) => (p ?? string.Empty).Trim();
+
+                var configuredPort = NormalizePort(_config.PortName);
+                var configuredIsAuto = string.IsNullOrWhiteSpace(configuredPort) ||
+                                       configuredPort.Equals("AUTO", StringComparison.OrdinalIgnoreCase);
+
+                var candidatePorts = new List<string>();
+                if (!configuredIsAuto)
+                {
+                    candidatePorts.Add(configuredPort);
+                }
+                if (_config.AutoDetectPort || configuredIsAuto)
+                {
+                    foreach (var p in availablePorts)
                     {
-                        availablePorts = SerialPort.GetPortNames();
-                    }
-                    catch
-                    {
-                        // Ignore enumeration issues; we'll still log the original exception.
+                        var np = NormalizePort(p);
+                        if (string.IsNullOrWhiteSpace(np)) continue;
+                        if (candidatePorts.Any(x => x.Equals(np, StringComparison.OrdinalIgnoreCase))) continue;
+                        candidatePorts.Add(np);
                     }
 
-                    var portsText = availablePorts.Length == 0 ? "(none)" : string.Join(", ", availablePorts.OrderBy(p => p));
-                    _logger.LogError(ex,
-                        "Failed to open serial port {PortName}. Available ports: {AvailablePorts}",
-                        _config.PortName,
-                        portsText);
+                    // Some Windows machines can show USB serial devices in Device Manager while
+                    // SerialPort.GetPortNames() returns none (driver not loaded / device error).
+                    // In that case, probing common COM numbers may still find a usable port.
+                    if (availablePorts.Length == 0)
+                    {
+                        for (var i = 1; i <= 20; i++)
+                        {
+                            var probe = $"COM{i}";
+                            if (candidatePorts.Any(x => x.Equals(probe, StringComparison.OrdinalIgnoreCase))) continue;
+                            candidatePorts.Add(probe);
+                        }
+                    }
+                }
 
+                if (candidatePorts.Count == 0)
+                {
+                    _logger.LogWarning(
+                        "No serial ports detected on this machine (SerialPort.GetPortNames returned none). " +
+                        "If you expect a USB-RS485 adapter, check drivers/Device Manager (often CH340/FTDI driver)." );
+                    return false;
+                }
+
+                Exception? lastException = null;
+                foreach (var port in candidatePorts)
+                {
                     try
                     {
                         _serialPort?.Dispose();
-                    }
-                    catch
-                    {
-                        // ignore
-                    }
-                    finally
-                    {
-                        _serialPort = null;
-                    }
+                        _serialPort = new SerialPort
+                        {
+                            PortName = port,
+                            BaudRate = _config.BaudRate,
+                            DataBits = _config.DataBits,
+                            Parity = _config.Parity,
+                            StopBits = _config.StopBits,
+                            ReadTimeout = _config.ReadTimeout,
+                            WriteTimeout = _config.WriteTimeout,
+                            Handshake = Handshake.None,
+                            DtrEnable = false,
+                            RtsEnable = false
+                        };
 
-                    return false;
+                        _serialPort.Open();
+
+                        if (!configuredIsAuto && !port.Equals(configuredPort, StringComparison.OrdinalIgnoreCase))
+                        {
+                            _logger.LogWarning(
+                                "Configured serial port {ConfiguredPort} was not usable; using {DetectedPort} instead",
+                                configuredPort,
+                                port);
+                        }
+
+                        _logger.LogInformation("Serial port {PortName} opened successfully", port);
+                        return true;
+                    }
+                    catch (Exception ex)
+                    {
+                        lastException = ex;
+
+                        // If this is the configured port and autodetect is disabled, stop early.
+                        if (!_config.AutoDetectPort && !configuredIsAuto)
+                        {
+                            break;
+                        }
+
+                        // Otherwise, try next candidate port.
+                        try
+                        {
+                            _serialPort?.Dispose();
+                        }
+                        catch
+                        {
+                            // ignore
+                        }
+                        finally
+                        {
+                            _serialPort = null;
+                        }
+                    }
                 }
+
+                var portsText = availablePorts.Length == 0 ? "(none)" : string.Join(", ", availablePorts.OrderBy(p => p));
+                _logger.LogError(lastException,
+                    "Failed to open any serial port. Configured={PortName}. Candidates={Candidates}. Available ports: {AvailablePorts}",
+                    _config.PortName,
+                    string.Join(", ", candidatePorts),
+                    portsText);
+
+                return false;
             }
         });
     }

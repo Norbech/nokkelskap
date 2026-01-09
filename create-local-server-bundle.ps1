@@ -247,6 +247,17 @@ function Start-DotNetApp {
 $webDir = Join-Path $root "web"
 $agentDir = Join-Path $root "agent"
 
+# If present, prefer editable configs from .\config\ over published defaults.
+$configDir = Join-Path $root "config"
+$webConfigSrc = Join-Path $configDir "appsettings.web.json"
+$agentConfigSrc = Join-Path $configDir "appsettings.agent.json"
+if (Test-Path $webConfigSrc) {
+    Copy-Item -Force $webConfigSrc (Join-Path $webDir "appsettings.json")
+}
+if (Test-Path $agentConfigSrc) {
+    Copy-Item -Force $agentConfigSrc (Join-Path $agentDir "appsettings.json")
+}
+
 Write-Host "Starting Web..." -ForegroundColor Cyan
 $dotnetExeForRun = if ($isSelfContained) { $null } else { Resolve-DotNetExe }
 $pWeb = Start-DotNetApp -AppDir $webDir -DllName "KeyCabinetApp.Web.dll" -DotNetExe $dotnetExeForRun -Arguments @("--urls", $Urls) -StdOut $webOut -StdErr $webErr
