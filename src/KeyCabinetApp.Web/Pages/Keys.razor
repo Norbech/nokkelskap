@@ -50,7 +50,34 @@ else
             @foreach (var key in AvailableKeys)
             {
                 var imageUrl = KeyImages.GetImageUrl(key.Id);
-                <div class="key-card" @onclick="() => OpenKey(key)">
+                var isOnCooldown = IsKeyOnCooldown(key);
+                var cooldownRemaining = GetCooldownRemaining(key);
+                var isDoorOpen = DoorIsOpen.ContainsKey(key.Id) && DoorIsOpen[key.Id];
+                
+                <div class="key-card @(isOnCooldown ? "cooldown" : "")" @onclick="() => OpenKey(key)">
+                    <!-- Door status indicator -->
+                    @if (HardwareAgentManager.IsAgentConnected)
+                    {
+                        <div class="door-status-indicator @(isDoorOpen ? "open" : "closed")" title="@(isDoorOpen ? "Dør åpen" : "Dør lukket")">
+                            @if (isDoorOpen)
+                            {
+                                <span>🔓</span>
+                            }
+                            else
+                            {
+                                <span>🔒</span>
+                            }
+                        </div>
+                    }
+                    
+                    <!-- Cooldown overlay -->
+                    @if (isOnCooldown)
+                    {
+                        <div class="cooldown-overlay">
+                            <div class="cooldown-text">Vent @cooldownRemaining sek</div>
+                        </div>
+                    }
+                    
                     <div class="key-icon-section">
                         @if (!string.IsNullOrWhiteSpace(imageUrl))
                         {
@@ -86,6 +113,15 @@ else
     private string StatusMessage { get; set; } = "Velg nøkkel å åpne";
     private bool IsError { get; set; }
     private bool _hasInitialized;
+    
+    // Door status tracking
+    private Dictionary<int, string> DoorStatuses { get; set; } = new();
+    private Dictionary<int, bool> DoorIsOpen { get; set; } = new();
+    private System.Threading.Timer? _statusRefreshTimer;
+    
+    // Cooldown tracking
+    private Dictionary<int, DateTime> LastOpenTime { get; set; } = new();
+    private const int CooldownSeconds = 5; // 5 seconds cooldown
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -101,6 +137,13 @@ else
             }
 
             await LoadUserKeys();
+            
+            // Start periodic status refresh
+            _statusRefreshTimer = new System.Threading.Timer(async _ => 
+            {
+                await RefreshDoorStatuses();
+            }, null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5));
+            
             StateHasChanged();
         }
     }
@@ -117,9 +160,70 @@ else
         AvailableKeys = keys.OrderBy(k => k.Name).ToList();
     }
 
+    private async Task RefreshDoorStatuses()
+    {
+        if (!HardwareAgentManager.IsAgentConnected) return;
+
+        foreach (var key in AvailableKeys)
+        {
+            try
+            {
+                var status = await KeyControlService.GetSlotStatusAsync(key.SlotId);
+                if (status != null)
+                {
+                    DoorStatuses[key.Id] = status;
+                    // Simple heuristic: if status contains certain byte patterns, door is open
+                    // This depends on your hardware protocol
+                    DoorIsOpen[key.Id] = IsStatusOpen(status);
+                }
+            }
+            catch
+            {
+                // Ignore errors during status refresh
+            }
+        }
+        
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private bool IsStatusOpen(string status)
+    {
+        // This is a simple example - adjust based on your actual hardware response
+        // You may need to check specific bytes in the response
+        // For now, we'll assume the door is closed by default
+        return status.Contains("01") || status.Contains("FF");
+    }
+
+    private bool IsKeyOnCooldown(Key key)
+    {
+        if (!LastOpenTime.ContainsKey(key.Id)) return false;
+        
+        var timeSinceLastOpen = DateTime.Now - LastOpenTime[key.Id];
+        return timeSinceLastOpen.TotalSeconds < CooldownSeconds;
+    }
+
+    private int GetCooldownRemaining(Key key)
+    {
+        if (!LastOpenTime.ContainsKey(key.Id)) return 0;
+        
+        var timeSinceLastOpen = DateTime.Now - LastOpenTime[key.Id];
+        var remaining = CooldownSeconds - (int)timeSinceLastOpen.TotalSeconds;
+        return Math.Max(0, remaining);
+    }
+
     private async Task OpenKey(Key key)
     {
         if (SessionState.CurrentUser == null) return;
+        
+        // Check cooldown
+        if (IsKeyOnCooldown(key))
+        {
+            var remaining = GetCooldownRemaining(key);
+            StatusMessage = $"Vent {remaining} sekunder før du kan åpne {key.Name} igjen";
+            IsError = true;
+            StateHasChanged();
+            return;
+        }
 
         StatusMessage = $"Åpner {key.Name}...";
         IsError = false;
@@ -133,6 +237,16 @@ else
 
         StatusMessage = message;
         IsError = !success;
+        
+        if (success)
+        {
+            LastOpenTime[key.Id] = DateTime.Now;
+            
+            // Immediately refresh status for this door
+            await Task.Delay(500);
+            await RefreshDoorStatuses();
+        }
+        
         StateHasChanged();
 
         if (success)
@@ -158,6 +272,6 @@ else
 
     public void Dispose()
     {
-        // Cleanup if needed
+        _statusRefreshTimer?.Dispose();
     }
 }

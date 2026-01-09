@@ -147,6 +147,25 @@ public class KeyControlService
             return null;
         }
     }
+    
+    /// <summary>
+    /// Gets status for a slot by slot ID
+    /// </summary>
+    public async Task<string?> GetSlotStatusAsync(int slotId)
+    {
+        try
+        {
+            if (!_serialCommunication.IsConnected)
+                await _serialCommunication.ConnectAsync();
+
+            return await _serialCommunication.GetSlotStatusAsync(slotId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting status for slot ID: {SlotId}", slotId);
+            return null;
+        }
+    }
 
     private async Task LogKeyEventAsync(int userId, int? keyId, int? slotId, string authMethod, bool success, string details)
     {
