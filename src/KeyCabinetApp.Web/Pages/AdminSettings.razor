@@ -1,0 +1,207 @@
+@page "/admin/settings"
+@using KeyCabinetApp.Application.Services
+@using KeyCabinetApp.Core.Entities
+@using KeyCabinetApp.Web.Services
+@inject SystemSettingsService SettingsService
+@inject SessionStateService SessionState
+@inject NavigationManager Navigation
+
+<PageTitle>Systeminnstillinger</PageTitle>
+
+@if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
+{
+    <div class="access-denied">
+        <h2>Ingen tilgang</h2>
+        <p>Du må være administrator for å se denne siden.</p>
+        <button class="btn-primary" @onclick="@(() => Navigation.NavigateTo("/admin"))">Tilbake</button>
+    </div>
+}
+else
+{
+    <div class="admin-container">
+        <div class="admin-header">
+            <h1>⚙️ Systeminnstillinger</h1>
+            <button class="btn-outline" @onclick="@(() => Navigation.NavigateTo("/admin"))">Tilbake</button>
+        </div>
+
+        @if (Settings != null)
+        {
+            <div class="settings-sections">
+                <!-- Door Status Settings -->
+                <div class="settings-card">
+                    <h2>🔒 Dør-status</h2>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" @bind="Settings.EnableDoorStatus" />
+                            Vis dør-status på nøkkelknapper
+                        </label>
+                        <p class="help-text">Viser om dører er åpne eller lukket med grønn/rød indikator</p>
+                    </div>
+                    
+                    @if (Settings.EnableDoorStatus)
+                    {
+                        <div class="form-group">
+                            <label>Oppdateringsintervall (sekunder)</label>
+                            <input type="number" min="1" max="60" @bind="Settings.StatusRefreshIntervalSeconds" />
+                            <p class="help-text">Hvor ofte systemet sjekker om dører er åpne (1-60 sekunder)</p>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Første oppdatering etter (sekunder)</label>
+                            <input type="number" min="1" max="10" @bind="Settings.StatusInitialDelaySeconds" />
+                            <p class="help-text">Forsinkelse før første status-sjekk (1-10 sekunder)</p>
+                        </div>
+                    }
+                </div>
+
+                <!-- Cooldown Settings -->
+                <div class="settings-card">
+                    <h2>⏱️ Cooldown / Anti-spam</h2>
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" @bind="Settings.EnableCooldown" />
+                            Aktiver cooldown-beskyttelse
+                        </label>
+                        <p class="help-text">Forhindrer at samme nøkkel åpnes flere ganger på kort tid</p>
+                    </div>
+                    
+                    @if (Settings.EnableCooldown)
+                    {
+                        <div class="form-group">
+                            <label>Cooldown-tid (sekunder)</label>
+                            <input type="number" min="1" max="60" @bind="Settings.CooldownSeconds" />
+                            <p class="help-text">Hvor lenge man må vente mellom åpninger (1-60 sekunder)</p>
+                        </div>
+                    }
+                </div>
+
+                <!-- Session Settings -->
+                <div class="settings-card">
+                    <h2>👤 Sesjon</h2>
+                    <div class="form-group">
+                        <label>Sesjons-timeout (minutter)</label>
+                        <input type="number" min="5" max="480" @bind="Settings.SessionTimeoutMinutes" />
+                        <p class="help-text">Hvor lenge en bruker kan være inaktiv før automatisk utlogging (5-480 minutter)</p>
+                    </div>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(StatusMessage))
+            {
+                <div class="status-message @(IsError ? "error" : "success")">
+                    @StatusMessage
+                </div>
+            }
+
+            <div class="settings-actions">
+                <button class="btn-outline" @onclick="ResetToDefaults">Tilbakestill til standard</button>
+                <button class="btn-primary" @onclick="SaveSettings">Lagre endringer</button>
+            </div>
+
+            <div class="settings-info">
+                <p><strong>Sist endret:</strong> @Settings.LastModified.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")</p>
+            </div>
+        }
+        else
+        {
+            <div class="loading">Laster innstillinger...</div>
+        }
+    </div>
+}
+
+@code {
+    private SystemSettings? Settings { get; set; }
+    private string StatusMessage { get; set; } = string.Empty;
+    private bool IsError { get; set; }
+    private bool _hasInitialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !_hasInitialized)
+        {
+            await SessionState.InitializeAsync();
+            _hasInitialized = true;
+
+            if (SessionState.CurrentUser == null || !SessionState.CurrentUser.IsAdmin)
+            {
+                Navigation.NavigateTo("/admin");
+                return;
+            }
+
+            await LoadSettings();
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadSettings()
+    {
+        try
+        {
+            Settings = await SettingsService.GetSettingsAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Feil ved lasting av innstillinger: {ex.Message}";
+            IsError = true;
+        }
+    }
+
+    private async Task SaveSettings()
+    {
+        if (Settings == null) return;
+
+        try
+        {
+            // Validate settings
+            if (Settings.CooldownSeconds < 1 || Settings.CooldownSeconds > 60)
+            {
+                StatusMessage = "Cooldown må være mellom 1 og 60 sekunder";
+                IsError = true;
+                return;
+            }
+
+            if (Settings.StatusRefreshIntervalSeconds < 1 || Settings.StatusRefreshIntervalSeconds > 60)
+            {
+                StatusMessage = "Oppdateringsintervall må være mellom 1 og 60 sekunder";
+                IsError = true;
+                return;
+            }
+
+            if (Settings.SessionTimeoutMinutes < 5 || Settings.SessionTimeoutMinutes > 480)
+            {
+                StatusMessage = "Sesjons-timeout må være mellom 5 og 480 minutter";
+                IsError = true;
+                return;
+            }
+
+            await SettingsService.UpdateSettingsAsync(Settings);
+            StatusMessage = "✓ Innstillinger lagret";
+            IsError = false;
+
+            await Task.Delay(2000);
+            StatusMessage = string.Empty;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Feil ved lagring: {ex.Message}";
+            IsError = true;
+        }
+    }
+
+    private async Task ResetToDefaults()
+    {
+        if (Settings == null) return;
+
+        Settings.CooldownSeconds = 5;
+        Settings.StatusRefreshIntervalSeconds = 5;
+        Settings.StatusInitialDelaySeconds = 2;
+        Settings.EnableDoorStatus = true;
+        Settings.EnableCooldown = true;
+        Settings.SessionTimeoutMinutes = 30;
+
+        StatusMessage = "Innstillinger tilbakestilt til standard (ikke lagret ennå)";
+        IsError = false;
+        StateHasChanged();
+    }
+}

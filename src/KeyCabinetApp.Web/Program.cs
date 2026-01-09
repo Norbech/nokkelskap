@@ -48,10 +48,12 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IKeyRepository, KeyRepository>();
 builder.Services.AddScoped<IEventRepository, EventRepository>();
+builder.Services.AddScoped<ISystemSettingsRepository, SystemSettingsRepository>();
 
 // Application Services (scoped for Blazor Server)
 builder.Services.AddScoped<AuthenticationService>();
 builder.Services.AddScoped<LoggingService>();
+builder.Services.AddScoped<SystemSettingsService>();
 
 // Hardware proxy service (communicates with local agent via SignalR)
 builder.Services.AddScoped<ISerialCommunication, HardwareProxyService>();

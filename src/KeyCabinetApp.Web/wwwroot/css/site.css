@@ -945,6 +945,65 @@ main {
     min-width: 150px;
 }
 
+/* Settings page */
+.settings-sections {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.settings-card {
+    background: var(--card-background);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    padding: 24px;
+}
+
+.settings-card h2 {
+    margin-bottom: 20px;
+    color: var(--primary-color);
+    font-size: 20px;
+}
+
+.help-text {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    font-style: italic;
+}
+
+.settings-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-bottom: 16px;
+}
+
+.settings-info {
+    text-align: right;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.status-message {
+    padding: 12px;
+    border-radius: var(--border-radius);
+    margin-bottom: 16px;
+    text-align: center;
+    font-weight: 500;
+}
+
+.status-message.success {
+    background: #e8f5e9;
+    color: var(--success-color);
+}
+
+.status-message.error {
+    background: #ffebee;
+    color: var(--error-color);
+}
+
 .user-cell small {
     display: block;
     color: var(--text-secondary);

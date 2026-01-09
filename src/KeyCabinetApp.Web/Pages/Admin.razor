@@ -69,6 +69,14 @@ else
                 <button class="btn-primary" @onclick="ManageImages">Administrer bilder</button>
             </div>
 
+            <!-- Settings Section -->
+            <div class="admin-card">
+                <div class="card-icon">⚙️</div>
+                <h2>Systeminnstillinger</h2>
+                <p>Konfigurer cooldown, dør-status og andre systeminnstillinger.</p>
+                <button class="btn-primary" @onclick="ManageSettings">Administrer innstillinger</button>
+            </div>
+
             <!-- Hardware Status -->
             <div class="admin-card">
                 <div class="card-icon">🖥️</div>
@@ -133,5 +141,10 @@ else
     private void ManageImages()
     {
         Navigation.NavigateTo("/admin/images");
+    }
+
+    private void ManageSettings()
+    {
+        Navigation.NavigateTo("/admin/settings");
     }
 }

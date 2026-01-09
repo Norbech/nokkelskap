@@ -14,6 +14,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Key> Keys { get; set; }
     public DbSet<UserKeyAccess> UserKeyAccess { get; set; }
     public DbSet<Event> Events { get; set; }
+    public DbSet<SystemSettings> SystemSettings { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

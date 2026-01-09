@@ -4,6 +4,7 @@
 @using KeyCabinetApp.Web.Services
 @inject AuthenticationService AuthService
 @inject KeyControlService KeyControlService
+@inject SystemSettingsService SettingsService
 @inject SessionStateService SessionState
 @inject NavigationManager Navigation
 @inject HardwareAgentManager HardwareAgentManager
@@ -53,10 +54,11 @@ else
                 var isOnCooldown = IsKeyOnCooldown(key);
                 var cooldownRemaining = GetCooldownRemaining(key);
                 var isDoorOpen = DoorIsOpen.ContainsKey(key.Id) && DoorIsOpen[key.Id];
+                var showDoorStatus = Settings?.EnableDoorStatus ?? false;
                 
                 <div class="key-card @(isOnCooldown ? "cooldown" : "")" @onclick="() => OpenKey(key)">
                     <!-- Door status indicator -->
-                    @if (HardwareAgentManager.IsAgentConnected)
+                    @if (showDoorStatus && HardwareAgentManager.IsAgentConnected)
                     {
                         <div class="door-status-indicator @(isDoorOpen ? "open" : "closed")" title="@(isDoorOpen ? "Dør åpen" : "Dør lukket")">
                             @if (isDoorOpen)
@@ -114,6 +116,9 @@ else
     private bool IsError { get; set; }
     private bool _hasInitialized;
     
+    // Settings
+    private SystemSettings? Settings { get; set; }
+    
     // Door status tracking
     private Dictionary<int, string> DoorStatuses { get; set; } = new();
     private Dictionary<int, bool> DoorIsOpen { get; set; } = new();
@@ -121,7 +126,6 @@ else
     
     // Cooldown tracking
     private Dictionary<int, DateTime> LastOpenTime { get; set; } = new();
-    private const int CooldownSeconds = 5; // 5 seconds cooldown
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -136,13 +140,21 @@ else
                 return;
             }
 
+            // Load settings
+            Settings = await SettingsService.GetSettingsAsync();
+
             await LoadUserKeys();
             
-            // Start periodic status refresh
-            _statusRefreshTimer = new System.Threading.Timer(async _ => 
+            // Start periodic status refresh if enabled
+            if (Settings.EnableDoorStatus)
             {
-                await RefreshDoorStatuses();
-            }, null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5));
+                _statusRefreshTimer = new System.Threading.Timer(async _ => 
+                {
+                    await RefreshDoorStatuses();
+                }, null, 
+                TimeSpan.FromSeconds(Settings.StatusInitialDelaySeconds), 
+                TimeSpan.FromSeconds(Settings.StatusRefreshIntervalSeconds));
+            }
             
             StateHasChanged();
         }
@@ -196,27 +208,29 @@ else
 
     private bool IsKeyOnCooldown(Key key)
     {
+        if (Settings == null || !Settings.EnableCooldown) return false;
         if (!LastOpenTime.ContainsKey(key.Id)) return false;
         
         var timeSinceLastOpen = DateTime.Now - LastOpenTime[key.Id];
-        return timeSinceLastOpen.TotalSeconds < CooldownSeconds;
+        return timeSinceLastOpen.TotalSeconds < Settings.CooldownSeconds;
     }
 
     private int GetCooldownRemaining(Key key)
     {
+        if (Settings == null || !Settings.EnableCooldown) return 0;
         if (!LastOpenTime.ContainsKey(key.Id)) return 0;
         
         var timeSinceLastOpen = DateTime.Now - LastOpenTime[key.Id];
-        var remaining = CooldownSeconds - (int)timeSinceLastOpen.TotalSeconds;
+        var remaining = Settings.CooldownSeconds - (int)timeSinceLastOpen.TotalSeconds;
         return Math.Max(0, remaining);
     }
 
     private async Task OpenKey(Key key)
     {
-        if (SessionState.CurrentUser == null) return;
+        if (SessionState.CurrentUser == null || Settings == null) return;
         
         // Check cooldown
-        if (IsKeyOnCooldown(key))
+        if (Settings.EnableCooldown && IsKeyOnCooldown(key))
         {
             var remaining = GetCooldownRemaining(key);
             StatusMessage = $"Vent {remaining} sekunder før du kan åpne {key.Name} igjen";
