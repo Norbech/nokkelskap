@@ -41,14 +41,14 @@ public class HardwareAgentWorker : BackgroundService
         _logger.LogInformation("RFID reader started");
 
         // Connect to serial port
-        try
+        var serialConnected = await _serialComm.ConnectAsync();
+        if (serialConnected)
         {
-            await _serialComm.ConnectAsync();
             _logger.LogInformation("Serial communication connected");
         }
-        catch (Exception ex)
+        else
         {
-            _logger.LogWarning("Failed to connect serial port: {Message}", ex.Message);
+            _logger.LogWarning("Serial communication NOT connected (check COM port config)");
         }
 
         // Connect to server
@@ -82,7 +82,13 @@ public class HardwareAgentWorker : BackgroundService
         {
             if (!_serialComm.IsConnected)
             {
-                await _serialComm.ConnectAsync();
+                var connected = await _serialComm.ConnectAsync();
+                if (!connected)
+                {
+                    _logger.LogWarning("Cannot open slot {SlotId} because serial port is not connected", slotId);
+                    await _signalRClient.ReportCommandResultAsync(false);
+                    return;
+                }
             }
 
             var success = await _serialComm.OpenSlotAsync(slotId);

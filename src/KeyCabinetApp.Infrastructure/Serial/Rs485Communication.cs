@@ -72,16 +72,17 @@ public class Rs485Communication : ISerialCommunication, IDisposable
     {
         return await Task.Run(() =>
         {
-            try
+            lock (_lock)
             {
-                lock (_lock)
+                if (_serialPort?.IsOpen == true)
                 {
-                    if (_serialPort?.IsOpen == true)
-                    {
-                        _logger.LogInformation("Serial port already connected");
-                        return true;
-                    }
+                    _logger.LogInformation("Serial port already connected");
+                    return true;
+                }
 
+                try
+                {
+                    _serialPort?.Dispose();
                     _serialPort = new SerialPort
                     {
                         PortName = _config.PortName,
@@ -100,11 +101,39 @@ public class Rs485Communication : ISerialCommunication, IDisposable
                     _logger.LogInformation("Serial port {PortName} opened successfully", _config.PortName);
                     return true;
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to open serial port {PortName}", _config.PortName);
-                return false;
+                catch (Exception ex)
+                {
+                    var availablePorts = Array.Empty<string>();
+                    try
+                    {
+                        availablePorts = SerialPort.GetPortNames();
+                    }
+                    catch
+                    {
+                        // Ignore enumeration issues; we'll still log the original exception.
+                    }
+
+                    var portsText = availablePorts.Length == 0 ? "(none)" : string.Join(", ", availablePorts.OrderBy(p => p));
+                    _logger.LogError(ex,
+                        "Failed to open serial port {PortName}. Available ports: {AvailablePorts}",
+                        _config.PortName,
+                        portsText);
+
+                    try
+                    {
+                        _serialPort?.Dispose();
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+                    finally
+                    {
+                        _serialPort = null;
+                    }
+
+                    return false;
+                }
             }
         });
     }
