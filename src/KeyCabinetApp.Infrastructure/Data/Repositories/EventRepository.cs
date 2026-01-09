@@ -1,4 +1,5 @@
 using KeyCabinetApp.Core.Entities;
+using KeyCabinetApp.Core.Enums;
 using KeyCabinetApp.Core.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -47,6 +48,17 @@ public class EventRepository : IEventRepository
             .Include(e => e.Key)
             .OrderByDescending(e => e.Timestamp)
             .ToListAsync();
+    }
+
+    public async Task<DateTime?> GetLastSuccessfulKeyOpenUtcAsync(int keyId)
+    {
+        return await _context.Events
+            .Where(e => e.KeyId == keyId &&
+                        e.Success &&
+                        (e.ActionType == ActionTypes.OPEN || e.ActionType == ActionTypes.REMOTE_OPEN))
+            .OrderByDescending(e => e.Timestamp)
+            .Select(e => (DateTime?)e.Timestamp)
+            .FirstOrDefaultAsync();
     }
 
     public async Task<IEnumerable<Event>> GetByDateRangeAsync(DateTime startDate, DateTime endDate)

@@ -14,6 +14,31 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Resolve-DotNetExe {
+    $candidates = @(
+        (Join-Path $env:ProgramFiles 'dotnet\dotnet.exe'),
+        (Join-Path ${env:ProgramFiles(x86)} 'dotnet\dotnet.exe')
+    )
+
+    foreach ($p in $candidates) {
+        if ($p -and (Test-Path $p)) { return $p }
+    }
+
+    try {
+        $cmd = Get-Command dotnet -ErrorAction SilentlyContinue
+        if ($cmd -and $cmd.Source) { return $cmd.Source }
+    } catch {
+        # Ignore
+    }
+
+    return $null
+}
+
+$dotnetExe = Resolve-DotNetExe
+if (-not $dotnetExe) {
+    throw "dotnet.exe not found. Install .NET 8 SDK."
+}
+
 $repoRoot = $PSScriptRoot
 $webProject = Join-Path $repoRoot "src\\KeyCabinetApp.Web\\KeyCabinetApp.Web.csproj"
 $agentProject = Join-Path $repoRoot "src\\KeyCabinetApp.HardwareAgent\\KeyCabinetApp.HardwareAgent.csproj"
@@ -63,11 +88,11 @@ if ($SelfContained) {
 }
 
 Write-Host "Publishing Web..." -ForegroundColor Yellow
-& dotnet @webPublishArgs
+& $dotnetExe @webPublishArgs
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish (Web) failed." }
 
 Write-Host "Publishing HardwareAgent..." -ForegroundColor Yellow
-& dotnet @agentPublishArgs
+& $dotnetExe @agentPublishArgs
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish (HardwareAgent) failed." }
 
 # Copy default configs as reference (publish output already contains appsettings.json)

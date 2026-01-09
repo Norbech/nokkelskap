@@ -81,6 +81,7 @@ public partial class App : WpfApp
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IKeyRepository, KeyRepository>();
         services.AddScoped<IEventRepository, EventRepository>();
+        services.AddScoped<ISystemSettingsRepository, SystemSettingsRepository>();
 
         // Serial Configuration
         var serialConfig = new SerialConfig();
@@ -97,6 +98,7 @@ public partial class App : WpfApp
         services.AddSingleton<AuthenticationService>();
         services.AddSingleton<KeyControlService>();
         services.AddSingleton<LoggingService>();
+        services.AddSingleton<SystemSettingsService>();
 
         // Remote API
         var apiConfig = new RemoteApiConfig();

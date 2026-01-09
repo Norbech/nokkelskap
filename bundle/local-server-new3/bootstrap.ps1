@@ -70,9 +70,34 @@ function Test-DotNetInstalled {
 }
 
 function Get-DotNetDownloadUrl {
-    # .NET 8.0 Runtime for Windows x64
-    # Direct link til hosting bundle (inkluderer alt som trengs)
-    return "https://download.visualstudio.microsoft.com/download/pr/907765b0-2bf8-494e-93aa-5ef9553c5d68/a9308dc010617e6716c0e6abd53b05ce/dotnet-hosting-8.0.0-win.exe"
+    # Bruk offisiell release-metadata for å finne siste .NET 8 Hosting Bundle.
+    # Dette er mye mer stabilt enn hardkodet VS-download URL som kan bli fjernet.
+    $metadataUrl = "https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/8.0/releases.json"
+
+    try {
+        $ProgressPreference = 'SilentlyContinue'
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+        $raw = (Invoke-WebRequest -UseBasicParsing -Uri $metadataUrl -TimeoutSec 30).Content
+        if (-not $raw) { throw "Empty metadata" }
+
+        $json = $raw | ConvertFrom-Json
+        if (-not $json -or -not $json.releases -or $json.releases.Count -lt 1) { throw "Invalid metadata schema" }
+
+        $latest = $json.releases[0]
+        $files = $latest.'aspnetcore-runtime'.files
+        if (-not $files) { throw "Missing aspnetcore-runtime files" }
+
+        $hosting = $files | Where-Object { $_.name -eq 'dotnet-hosting-win.exe' } | Select-Object -First 1
+        if (-not $hosting -or -not $hosting.url) { throw "Missing hosting bundle URL" }
+
+        return [string]$hosting.url
+    } catch {
+        # Fallback: bruk dotnet-siden hvis metadata ikke kan hentes (offline/proxy/blocked).
+        return "https://dotnet.microsoft.com/download/dotnet/8.0"
+    } finally {
+        $ProgressPreference = 'Continue'
+    }
 }
 
 function Download-File {
@@ -86,6 +111,8 @@ function Download-File {
     Write-Host "Dette kan ta flere minutter avhengig av internettforbindelsen..." -ForegroundColor Gray
     
     try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
         # Prov forst med WebClient (mer palitelig for store filer)
         $webClient = New-Object System.Net.WebClient
         $webClient.DownloadFile($Url, $OutputPath)
@@ -96,12 +123,15 @@ function Download-File {
             return $true
         }
     } catch {
+        if (Test-Path $OutputPath) {
+            Remove-Item -Force -Path $OutputPath -ErrorAction SilentlyContinue
+        }
+
         Write-Host "WebClient feilet, prover Invoke-WebRequest..." -ForegroundColor Yellow
         
         try {
             # Fallback til Invoke-WebRequest
             $ProgressPreference = 'SilentlyContinue'
-            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
             Invoke-WebRequest -Uri $Url -OutFile $OutputPath -UseBasicParsing -TimeoutSec 600
             $ProgressPreference = 'Continue'
             
@@ -111,6 +141,9 @@ function Download-File {
                 return $true
             }
         } catch {
+            if (Test-Path $OutputPath) {
+                Remove-Item -Force -Path $OutputPath -ErrorAction SilentlyContinue
+            }
             Write-Host "[FEIL] Nedlasting feilet: $_" -ForegroundColor Red
             Write-Host "Feiltype: $($_.Exception.GetType().Name)" -ForegroundColor Red
             return $false
@@ -139,6 +172,15 @@ function Install-DotNetRuntime {
     
     $installerPath = Join-Path $downloadDir "dotnet-hosting-8.0-installer.exe"
     $downloadUrl = Get-DotNetDownloadUrl
+
+    # Hvis fallback til dotnet-siden, forklar at brukeren må laste ned manuelt.
+    if ($downloadUrl -like "https://dotnet.microsoft.com/*") {
+        Write-Host "";
+        Write-Host "Kunne ikke finne direkte nedlastningslenke automatisk." -ForegroundColor Yellow
+        Write-Host "Last ned og installer .NET 8 Hosting Bundle manuelt fra:" -ForegroundColor White
+        Write-Host "$downloadUrl" -ForegroundColor Cyan
+        return $false
+    }
     
     Write-Host ""
     Write-Host "Laster ned .NET 8.0 Hosting Bundle..." -ForegroundColor Cyan
@@ -157,15 +199,26 @@ function Install-DotNetRuntime {
     Write-Host ""
     
     try {
+        $isAdmin = $false
+        try {
+            $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+        } catch {
+            $isAdmin = $false
+        }
+
         # Start installeren og vent til den er ferdig
-        $process = Start-Process -FilePath $installerPath -Wait -PassThru
+        if (-not $isAdmin) {
+            Write-Host "Krever administrator-rettigheter (UAC) for a installere .NET." -ForegroundColor Yellow
+            $process = Start-Process -FilePath $installerPath -Wait -PassThru -Verb RunAs
+        } else {
+            $process = Start-Process -FilePath $installerPath -Wait -PassThru
+        }
         
         if ($process.ExitCode -eq 0) {
             Write-Host ""
             Write-Host "[OK] .NET Hosting Bundle installert" -ForegroundColor Green
             Write-Host ""
-            Write-Host "VIKTIG: Du ma starte PowerShell pa nytt for at endringene skal tre i kraft." -ForegroundColor Yellow
-            Write-Host "Lukk dette vinduet og kjor bootstrap.ps1 pa nytt." -ForegroundColor Yellow
+            Write-Host "Hvis serveren fortsatt sier at .NET mangler: lukk terminalen og prov igjen." -ForegroundColor Yellow
             Write-Host ""
             return $true
         } else {

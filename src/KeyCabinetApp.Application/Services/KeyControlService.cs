@@ -1,6 +1,8 @@
 using KeyCabinetApp.Core.Entities;
 using KeyCabinetApp.Core.Interfaces;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
+using System.Threading;
 
 namespace KeyCabinetApp.Application.Services;
 
@@ -9,17 +11,22 @@ public class KeyControlService
     private readonly IKeyRepository _keyRepository;
     private readonly ISerialCommunication _serialCommunication;
     private readonly IEventRepository _eventRepository;
+    private readonly SystemSettingsService _settingsService;
     private readonly ILogger<KeyControlService> _logger;
+
+    private static readonly ConcurrentDictionary<int, SemaphoreSlim> _keyOpenLocks = new();
 
     public KeyControlService(
         IKeyRepository keyRepository,
         ISerialCommunication serialCommunication,
         IEventRepository eventRepository,
+        SystemSettingsService settingsService,
         ILogger<KeyControlService> logger)
     {
         _keyRepository = keyRepository;
         _serialCommunication = serialCommunication;
         _eventRepository = eventRepository;
+        _settingsService = settingsService;
         _logger = logger;
     }
 
@@ -45,36 +52,64 @@ public class KeyControlService
                 return (false, "Nøkkel er deaktivert");
             }
 
-            // Ensure serial connection
-            if (!_serialCommunication.IsConnected)
+            // Prevent race/spam on the same key from multiple clients/requests.
+            var keyLock = _keyOpenLocks.GetOrAdd(keyId, _ => new SemaphoreSlim(1, 1));
+            await keyLock.WaitAsync();
+
+            try
             {
-                var connected = await _serialCommunication.ConnectAsync();
-                if (!connected)
+                // Server-side cooldown enforcement (applies to web, remote API, etc.)
+                var settings = await _settingsService.GetSettingsAsync();
+                if (settings.EnableCooldown)
                 {
-                    await LogKeyEventAsync(userId, keyId, key.SlotId, authMethod, false, "Serial connection failed");
-                    return (false, "Kunne ikke koble til nøkkelskap");
+                    var lastOpenUtc = await _eventRepository.GetLastSuccessfulKeyOpenUtcAsync(keyId);
+                    if (lastOpenUtc.HasValue)
+                    {
+                        var elapsedSeconds = (DateTime.UtcNow - lastOpenUtc.Value).TotalSeconds;
+                        if (elapsedSeconds < settings.CooldownSeconds)
+                        {
+                            var remaining = (int)Math.Ceiling(settings.CooldownSeconds - elapsedSeconds);
+                            await LogKeyEventAsync(userId, keyId, key.SlotId, authMethod, false, $"Cooldown active ({remaining}s remaining)");
+                            return (false, $"Vent {remaining} sekunder før du kan åpne {key.Name} igjen");
+                        }
+                    }
+                }
+
+                // Ensure serial connection
+                if (!_serialCommunication.IsConnected)
+                {
+                    var connected = await _serialCommunication.ConnectAsync();
+                    if (!connected)
+                    {
+                        await LogKeyEventAsync(userId, keyId, key.SlotId, authMethod, false, "Serial connection failed");
+                        return (false, "Kunne ikke koble til nøkkelskap");
+                    }
+                }
+
+                // Send command to open the slot
+                var success = await _serialCommunication.OpenSlotAsync(key.SlotId);
+
+                if (success)
+                {
+                    await LogKeyEventAsync(userId, keyId, key.SlotId, authMethod, true, $"Opened {key.Name}");
+                    _logger.LogInformation("Successfully opened key {KeyName} (slot {SlotId}) for user {UserId}",
+                        key.Name, key.SlotId, userId);
+
+                    KeyOpened?.Invoke(this, (key, true));
+                    return (true, $"{key.Name} åpnet");
+                }
+                else
+                {
+                    await LogKeyEventAsync(userId, keyId, key.SlotId, authMethod, false, "Command failed");
+                    _logger.LogError("Failed to open key {KeyName} (slot {SlotId})", key.Name, key.SlotId);
+
+                    KeyOpened?.Invoke(this, (key, false));
+                    return (false, "Kunne ikke åpne nøkkel");
                 }
             }
-
-            // Send command to open the slot
-            var success = await _serialCommunication.OpenSlotAsync(key.SlotId);
-
-            if (success)
+            finally
             {
-                await LogKeyEventAsync(userId, keyId, key.SlotId, authMethod, true, $"Opened {key.Name}");
-                _logger.LogInformation("Successfully opened key {KeyName} (slot {SlotId}) for user {UserId}", 
-                    key.Name, key.SlotId, userId);
-                
-                KeyOpened?.Invoke(this, (key, true));
-                return (true, $"{key.Name} åpnet");
-            }
-            else
-            {
-                await LogKeyEventAsync(userId, keyId, key.SlotId, authMethod, false, "Command failed");
-                _logger.LogError("Failed to open key {KeyName} (slot {SlotId})", key.Name, key.SlotId);
-                
-                KeyOpened?.Invoke(this, (key, false));
-                return (false, "Kunne ikke åpne nøkkel");
+                keyLock.Release();
             }
         }
         catch (Exception ex)

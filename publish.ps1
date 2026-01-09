@@ -1,10 +1,41 @@
 # Publish Script for Key Cabinet Application
 # Creates a standalone executable for deployment
 
-Write-Host "=== Key Cabinet Application Publish Script ===" -ForegroundColor Cyan
-Write-Host ""
+[CmdletBinding()]
+param(
+    [switch]$OpenFolder
+)
+
+function Resolve-DotNetExe {
+    $candidates = @(
+        (Join-Path $env:ProgramFiles 'dotnet\dotnet.exe'),
+        (Join-Path ${env:ProgramFiles(x86)} 'dotnet\dotnet.exe')
+    )
+
+    foreach ($p in $candidates) {
+        if ($p -and (Test-Path $p)) { return $p }
+    }
+
+    try {
+        $cmd = Get-Command dotnet -ErrorAction SilentlyContinue
+        if ($cmd -and $cmd.Source) { return $cmd.Source }
+    } catch {
+        # Ignore
+    }
+
+    return $null
+}
+
+$dotnetExe = Resolve-DotNetExe
+if (-not $dotnetExe) {
+    Write-Host "[FAIL] dotnet.exe not found. Install .NET 8 SDK." -ForegroundColor Red
+    exit 1
+}
 
 $publishPath = "publish\KeyCabinetApp"
+
+Write-Host "=== Key Cabinet Application Publish Script ===" -ForegroundColor Cyan
+Write-Host ""
 
 Write-Host "Publishing application for Windows x64..." -ForegroundColor Yellow
 Write-Host "Output directory: $publishPath" -ForegroundColor White
@@ -17,7 +48,7 @@ if (Test-Path $publishPath) {
 }
 
 # Publish
-dotnet publish src\KeyCabinetApp.UI\KeyCabinetApp.UI.csproj `
+& $dotnetExe publish src\KeyCabinetApp.UI\KeyCabinetApp.UI.csproj `
     --configuration Release `
     --runtime win-x64 `
     --self-contained true `
@@ -27,7 +58,7 @@ dotnet publish src\KeyCabinetApp.UI\KeyCabinetApp.UI.csproj `
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
-    Write-Host "✓ Publish successful!" -ForegroundColor Green
+    Write-Host "[OK] Publish successful!" -ForegroundColor Green
     Write-Host ""
     Write-Host "Deployment files are in: $publishPath" -ForegroundColor Cyan
     Write-Host ""
@@ -36,12 +67,11 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "2. Edit appsettings.json to configure COM port and commands" -ForegroundColor White
     Write-Host "3. Run KeyCabinetApp.UI.exe" -ForegroundColor White
     Write-Host ""
-    
-    $openFolder = Read-Host "Open publish folder? (Y/N)"
-    if ($openFolder -eq 'Y' -or $openFolder -eq 'y') {
+
+    if ($OpenFolder) {
         explorer.exe $publishPath
     }
 } else {
-    Write-Host "✗ Publish failed" -ForegroundColor Red
+    Write-Host "[FAIL] Publish failed" -ForegroundColor Red
     exit 1
 }
