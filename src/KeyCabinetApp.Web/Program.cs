@@ -106,6 +106,8 @@ app.UseStaticFiles(new StaticFileOptions
 
 app.UseRouting();
 
+app.MapGet("/health", () => Results.Ok("OK"));
+
 app.MapBlazorHub();
 app.MapHub<HardwareHub>("/hardwarehub");
 app.MapFallbackToPage("/_Host");

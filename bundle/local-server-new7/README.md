@@ -1,6 +1,26 @@
 ﻿# Local server bundle
 
-## ðŸš€ HURTIGSTART:
+## HURTIGSTART (anbefalt):
+
+**Dobbeltklikk: KeyCabinetServer.exe**
+
+(Alternativt: START-UI.cmd)
+
+Dette gir en liten UI med Start/Stopp-knapp og status-lampe, uten ekstra terminalvinduer.
+
+Serveren starter automatisk naar du aapner UI-en.
+
+Naar UI-en starter web, aapnes nettleseren i fullskjerm (Edge/Chrome hvis tilgjengelig).
+
+Autostart ved innlogging (PC-start):
+- Dobbeltklikk: INSTALL-AUTOSTART.cmd
+- For aa fjerne igjen: FJERN-AUTOSTART.cmd
+
+Tips: Ved autostart legges det ogsaa et tray-ikon (ved klokka) som lar deg starte/stoppe og aapne web.
+
+---
+
+## HURTIGSTART (gammel metode):
 
 **Dobbeltklikk pÃ¥: START.cmd**
 
@@ -11,6 +31,10 @@ Det er alt! Se HVORDAN-STARTE.txt for mer info.
 ## ðŸ“ Innhold:
 
 - `START.cmd` â† **Start serveren (dobbeltklikk)**
+- `START-UI.cmd` â† Starter UI-launcher (uten ekstra vinduer)
+- `KeyCabinetServer.exe` â† UI-launcher (Start/Stopp + status)
+- `INSTALL-AUTOSTART.cmd` â† Installer autostart ved innlogging
+- `FJERN-AUTOSTART.cmd` â† Fjern autostart
 - `STOPP.cmd` â† **Stopp serveren (dobbeltklikk)**
 - `HVORDAN-STARTE.txt` â† Detaljert brukerveiledning
 - `web/` Published KeyCabinetApp.Web

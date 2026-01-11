@@ -193,5 +193,33 @@ Write-Host "PIDs: Web=$($pWeb.Id) Agent=$($pAgent.Id)" -ForegroundColor White
 Write-Host "Logs: $logsDir" -ForegroundColor White
 
 if (-not $NoBrowser) {
-    Start-Process "http://localhost:5000" | Out-Null
+    $url = "http://localhost:5000"
+
+    function Find-BrowserExe {
+        param([Parameter(Mandatory=$true)][string[]]$Candidates)
+        foreach ($c in $Candidates) {
+            if ($c -and (Test-Path $c)) { return $c }
+        }
+        return $null
+    }
+
+    $edge = Find-BrowserExe -Candidates @(
+        (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'),
+        (Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe')
+    )
+
+    if ($edge) {
+        Start-Process -FilePath $edge -ArgumentList @('--new-window','--start-fullscreen',$url) | Out-Null
+    } else {
+        $chrome = Find-BrowserExe -Candidates @(
+            (Join-Path ${env:ProgramFiles(x86)} 'Google\Chrome\Application\chrome.exe'),
+            (Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe')
+        )
+
+        if ($chrome) {
+            Start-Process -FilePath $chrome -ArgumentList @('--new-window','--start-fullscreen',$url) | Out-Null
+        } else {
+            Start-Process $url | Out-Null
+        }
+    }
 }
