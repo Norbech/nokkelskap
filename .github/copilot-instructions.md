@@ -12,12 +12,17 @@ nokkelskap/
 │   ├── KeyCabinetApp.Core/          # Domenemodeller og grensesnitt
 │   ├── KeyCabinetApp.Application/   # Forretningslogikk
 │   ├── KeyCabinetApp.Infrastructure/ # Database, Serial, RFID
-│   ├── KeyCabinetApp.Web/           # Blazor Server web-app
+│   ├── KeyCabinetApp.Web/           # Blazor Server web-app (PRIMÆR)
 │   ├── KeyCabinetApp.HardwareAgent/ # Hardware I/O-tjeneste
+│   ├── KeyCabinetApp.LocalServerLauncher/ # Tray UI-launcher
 │   └── KeyCabinetApp.UI/            # Legacy WPF (ikke i bruk)
 │
 ├── bundle/                           # Deployment-bunter
 │   └── local-server-new7/           # Nyeste bundle (bruk denne)
+│       ├── KeyCabinetServer.exe     # UI-launcher med tray-ikon
+│       ├── web/                     # Publiserte web-binærfiler
+│       ├── agent/                   # Publiserte agent-binærfiler
+│       └── config/                  # Redigerbare appsettings
 │
 ├── publish/                          # Publiserte binærfiler (generert)
 │   ├── web/                         # Web Server binærfiler
@@ -43,13 +48,14 @@ nokkelskap/
 ## Arkitekturmønster
 
 **Clean Architecture** med streng lagdeling:
-- `KeyCabinetApp.Core/` - Domenemodeller (User, Key, Event), kun grensesnitt
+- `KeyCabinetApp.Core/` - Domenemodeller (User, Key, Event), kun grensesnitt - INGEN avhengigheter
 - `KeyCabinetApp.Application/` - Forretningslogikk-tjenester (AuthenticationService, KeyControlService)
 - `KeyCabinetApp.Infrastructure/` - Konkrete implementasjoner (ApplicationDbContext, Rs485Communication, RFID-lesere)
-- `KeyCabinetApp.Web/` - Blazor Server UI (web-grensesnitt)
-- `KeyCabinetApp.HardwareAgent/` - Bakgrunnstjeneste for hardware I/O
+- `KeyCabinetApp.Web/` - Blazor Server UI med Razor-komponenter i `Pages/`
+- `KeyCabinetApp.HardwareAgent/` - BackgroundService for hardware I/O
+- `KeyCabinetApp.LocalServerLauncher/` - WPF/WinForms hybrid UI-launcher med tray-ikon
 
-**Kritisk**: Core har INGEN avhengigheter. Application refererer kun til Core. Infrastructure implementerer Core-grensesnitt.
+**Kritisk**: Core har INGEN avhengigheter. Application refererer kun til Core. Infrastructure implementerer Core-grensesnitt. Web refererer Application + Infrastructure.
 
 ## Dobbel-Prosess Kommunikasjon
 
@@ -61,6 +67,21 @@ nokkelskap/
 - Serielle kommandoer flyter: Web UI → HardwareProxyService → SignalR → Agent → Rs485Communication
 
 **Hvorfor**: Hardware-tilgang (COM-porter, globale tastaturhooks) krever Windows-spesifikke privilegier. Separasjon tillater at web-serveren kan kjøre hvor som helst mens agenten forblir lokal.
+
+## Service Registrering & DI
+
+**Web Server** ([Program.cs](../src/KeyCabinetApp.Web/Program.cs)):
+- **Scoped** (per Blazor circuit): Repositories, Application services, Session state
+- **Singleton**: HardwareAgentManager, KeyImageService
+- Proxy-tjenester (`HardwareProxyService`, `RfidProxyService`) implementerer Core-grensesnitt men delegerer til SignalR
+- Database-sti: `%APPDATA%\KeyCabinetApp\keycabinet.db` settes opp i Program.cs
+- Standard URL: `http://0.0.0.0:5000` (kan overskrives via `--urls`)
+
+**Hardware Agent** ([Program.cs](../src/KeyCabinetApp.HardwareAgent/Program.cs)):
+- **Singleton**: All hardware-kommunikasjon (Rs485Communication, GlobalKeyboardRfidReader, SignalRClientService)
+- **HostedService**: HardwareAgentWorker koordinerer hardware-hendelser
+- Konfigurasjon lastet fra `appsettings.json` i `AppContext.BaseDirectory`
+- Støtter Windows Service-deployment via `AddWindowsService()`
 
 ## Database & Konfigurasjon
 
@@ -115,15 +136,31 @@ dotnet run --project src/KeyCabinetApp.HardwareAgent
 
 **Sesjonshåndtering**: [SessionStateService.cs](../src/KeyCabinetApp.Web/Services/SessionStateService.cs) sporer gjeldende bruker i Blazor Server scoped service (per-circuit).
 
+**Blazor Server Mønstre**:
+- Alle `.razor` filer i [src/KeyCabinetApp.Web/Pages/](../src/KeyCabinetApp.Web/Pages/)
+- Ruter via `@page` direktiv (f.eks. `@page "/keys"`)
+- Komponenter injiserer tjenester via `@inject` (f.eks. `@inject AuthenticationService AuthService`)
+- Real-time oppdateringer via `StateHasChanged()` når SignalR-hendelser mottas
+- Norsk språk brukes konsekvent i all UI-tekst
+- CSS-filer co-located med Razor-komponenter (f.eks. `Login.razor.css`)
+
 ## Deployment-Bunter
 
-`bundle/local-server-new*/` mapper inneholder distribusjonspakker med:
+`bundle/local-server-new7/` mapper inneholder distribusjonspakker med:
+- `KeyCabinetServer.exe` - UI-launcher med tray-ikon (dobbeltklikk for å starte)
 - Publiserte Web + Agent-binærfiler
-- Bootstrap-script for runtime-sjekker
-- Brukervendte .cmd-filer (START.cmd, STOPP.cmd, FINN-COM-PORT.cmd)
-- Norsk dokumentasjon (HVORDAN-STARTE.txt)
+- Bootstrap-script for runtime-sjekker (.NET 8 auto-install)
+- Brukervendte .cmd-filer:
+  - `START.cmd` / `START-UI.cmd` - Start serveren
+  - `STOPP.cmd` - Stopp serveren
+  - `INSTALL-AUTOSTART.cmd` - Installer autostart ved Windows-innlogging
+  - `FINN-COM-PORT.cmd` - Diagnostikk for COM-port
+- Norsk dokumentasjon (`HVORDAN-STARTE.txt`)
 
-**Deployment-mønster**: Self-contained publish ELLER framework-avhengig med runtime-sjekk via [run.ps1](../bundle/local-server-new7/run.ps1).
+**Deployment-mønster**: 
+- Self-contained publish (exe) ELLER framework-avhengig med runtime-sjekk via [run.ps1](../bundle/local-server-new7/run.ps1)
+- `run.ps1` detekterer tilgjengelig deployment-type automatisk
+- Bootstrap installerer .NET Runtime hvis mangler
 
 ## Vanlige Fallgruver
 

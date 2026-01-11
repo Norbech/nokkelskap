@@ -38,10 +38,11 @@ KeyCabinetApp/
 │   ├── KeyCabinetApp.Web/           # Blazor Server web-applikasjon (ANBEFALT)
 │   ├── KeyCabinetApp.HardwareAgent/ # Background service for RS485-kommunikasjon
 
-├── appsettings.json                 # Global konfigurasjon
-├── build.ps1                        # Byggescript
-├── publish.ps1                      # Publiseringscript
-└── README.md
+├── docs/                        # Dokumentasjon
+├── scripts/                     # Utvikler-scripts
+├── bundle/                      # Deployment-bunter
+├── appsettings.EXAMPLE.json     # Konfigurasjon-mal
+└── KeyCabinetApp.sln            # Visual Studio solution
 ```
 
 **Teknologistakk:**
@@ -68,6 +69,11 @@ KeyCabinetApp/
 
 1. Åpne terminal i prosjektets rotkatalog
 2. Gjenopprett avhengigheter og bygg:
+   ```powershell
+   .\scripts\build.ps1
+   ```
+   
+   Eller manuelt:
    ```powershell
    dotnet restore
    dotnet build
@@ -97,7 +103,7 @@ KeyCabinetApp/
 
 Bruk det inkluderte PowerShell-scriptet:
 ```powershell
-.\build.ps1
+.\scripts\build.ps1
 ```
 
 Dette bygger web-applikasjonen og hardware agent, og plasserer output i `publish/` mappen.
@@ -439,7 +445,7 @@ For å kjøre web-appen som en Windows Service:
 
 1. Bygg applikasjonen:
    ```powershell
-   .\publish.ps1
+   .\scripts\simple-publish.ps1
    ```
 
 2. Installer som Windows Service:

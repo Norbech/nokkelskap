@@ -1,3 +1,0 @@
-Legg logo-filen her, f.eks. org-logo.png
-
-Denne brukes av MainLayout.razor: /images/org-logo.png
