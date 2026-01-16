@@ -1,7 +1,0 @@
-tunnel: 5ae6a05c-cdf4-4b0c-9530-b1a09a18d893
-credentials-file: C:\Users\DRKH\.cloudflared\5ae6a05c-cdf4-4b0c-9530-b1a09a18d893.json
-
-ingress:
-  - hostname: drammenrkh.no
-    service: http://localhost:5000
-  - service: http_status:404
